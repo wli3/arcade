@@ -1,4 +1,9 @@
-phases: 
+resources:
+  containers:
+  - container: linuxContainer
+    image: microsoft/dotnet-buildtools-prereqs:ubuntu-14.04-cross-0cd4667-20170319080304
+
+phases:
   - template: /eng/build.yml
     parameters:
       name: Windows_NT
@@ -14,12 +19,13 @@ phases:
             _BuildConfig: Release
             _PublishType: none
             _SignType: test
-  
+
   - template: /eng/build.yml
     parameters:
       name: Linux
-      queue: 
-        name: Hosted Linux Preview
+      queue:
+        name: Hosted Ubuntu 1604
+        container: linuxContainer
         parallel: 2
         matrix:
           Build_Debug:
@@ -30,5 +36,3 @@ phases:
             _BuildConfig: Release
             _PublishType: none
             _SignType: none
-      variables:
-        _PREVIEW_VSTS_DOCKER_IMAGE: microsoft/dotnet-buildtools-prereqs:ubuntu-14.04-cross-0cd4667-20170319080304
