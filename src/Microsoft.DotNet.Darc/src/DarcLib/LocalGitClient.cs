@@ -28,7 +28,7 @@ namespace Microsoft.DotNet.DarcLib
             _logger = logger;
         }
 
-        public Task<string> CheckIfFileExistsAsync(string repoUri, string filePath, string branch)
+        public Task<bool> FileExistsAsync(string repoUri, string filePath, string branch)
         {
             throw new NotImplementedException();
         }
@@ -91,7 +91,7 @@ namespace Microsoft.DotNet.DarcLib
             throw new NotImplementedException();
         }
 
-        public Task<string> GetPullRequestBaseBranch(string pullRequestUrl)
+        public Task<string> GetPullRequestSourceBranch(string pullRequestUrl)
         {
             throw new NotImplementedException();
         }

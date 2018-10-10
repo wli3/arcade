@@ -329,6 +329,7 @@ namespace SubscriptionActorService.Tests
                             subscription.TargetRepository,
                             subscription.TargetBranch,
                             build.Commit,
+                            build.Repository,
                             It.IsAny<IList<AssetData>>(),
                             null,
                             It.IsAny<string>(),
@@ -354,6 +355,7 @@ namespace SubscriptionActorService.Tests
                         r => r.UpdatePullRequestAsync(
                             existingPr,
                             build.Commit,
+                            build.Repository,
                             subscription.TargetBranch,
                             It.IsAny<IList<AssetData>>(),
                             It.IsAny<string>(),

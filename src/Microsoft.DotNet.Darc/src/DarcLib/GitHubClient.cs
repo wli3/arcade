@@ -61,26 +61,69 @@ namespace Microsoft.DotNet.DarcLib
             };
         }
 
-        public async Task<string> GetFileContentsAsync(string filePath, string repoUri, string branch)
+        /// <summary>
+        /// Create an http client for accessing github
+        /// </summary>
+        /// <param name="versionOverride">Optional API version override.</param>
+        /// <returns></returns>
+        public HttpClient CreateHttpClient(string versionOverride = null)
         {
-            _logger.LogInformation($"Getting the contents of file '{filePath}' from repo '{repoUri}' in branch '{branch}'...");
+            HttpClient client = new HttpClient
+            {
+                BaseAddress = new Uri(GitHubApiUri)
+            };
+            client.DefaultRequestHeaders.Add("Authorization", $"Token {_personalAccessToken}");
+            client.DefaultRequestHeaders.Add("User-Agent", _userAgent);
+
+            return client;
+        }
+
+        /// <summary>
+        /// Executes a remote git command on Azure DevOps.
+        /// </summary>
+        /// <param name="accountName">Account name used for request</param>
+        /// <param name="projectName">Project name used for the request</param>
+        /// <param name="apiPath">Path to access (relative to base URI).</param>
+        /// <returns></returns>
+        private async Task<HttpResponseMessage> ExecuteRemoteGitCommand(HttpMethod method, string apiPath, ILogger logger,
+                                                                        string body = null, string versionOverride = null)
+        {
+            // Construct the API URI
+            using (HttpClient client = CreateHttpClient(versionOverride))
+            {
+                HttpRequestManager requestManager = new HttpRequestManager(client, method, apiPath, logger, body, versionOverride);
+
+                return await requestManager.ExecuteAsync();
+            }
+        }
+
+        /// <summary>
+        /// Retrieve the contents of a file in a repository.
+        /// </summary>
+        /// <param name="filePath">Path of file (relative to repo root)</param>
+        /// <param name="repoUri">URI of repo containing the file.</param>
+        /// <param name="branchOrCommit">Branch or commit to obtain file from.</param>
+        /// <returns>Content of file.</returns>
+        public async Task<string> GetFileContentsAsync(string filePath, string repoUri, string branchOrCommit)
+        {
+            _logger.LogInformation($"Getting the contents of file '{filePath}' from repo '{repoUri}' in branch '{branchOrCommit}'...");
 
             string ownerAndRepo = GetOwnerAndRepoFromRepoUri(repoUri);
 
             HttpResponseMessage response;
             try
             {
-                response = await this.ExecuteGitCommand(
+                response = await this.ExecuteRemoteGitCommand(
                     HttpMethod.Get,
-                    $"repos/{ownerAndRepo}/contents/{filePath}?ref={branch}",
+                    $"repos/{ownerAndRepo}/contents/{filePath}?ref={branchOrCommit}",
                     _logger);
             }
             catch (HttpRequestException reqEx) when (reqEx.Message.Contains("404 (Not Found)"))
             {
-                throw new DependencyFileNotFoundException(filePath, repoUri, branch, reqEx);
+                throw new DependencyFileNotFoundException(filePath, repoUri, branchOrCommit, reqEx);
             }
 
-            _logger.LogInformation($"Getting the contents of file '{filePath}' from repo '{repoUri}' in branch '{branch}' succeeded!");
+            _logger.LogInformation($"Getting the contents of file '{filePath}' from repo '{repoUri}' in branch '{branchOrCommit}' succeeded!");
 
             JObject responseContent = JObject.Parse(await response.Content.ReadAsStringAsync());
 
@@ -89,6 +132,13 @@ namespace Microsoft.DotNet.DarcLib
             return this.GetDecodedContent(content);
         }
 
+        /// <summary>
+        /// Create a new branch in a repo.
+        /// </summary>
+        /// <param name="repoUri">Repository to create branch in.</param>
+        /// <param name="newBranch">New branch name.</param>
+        /// <param name="baseBranch">Branch to create @newBranch off of.</param>
+        /// <returns></returns>
         public async Task CreateBranchAsync(string repoUri, string newBranch, string baseBranch)
         {
             _logger.LogInformation($"Verifying if '{newBranch}' branch exist in repo '{repoUri}'. If not, we'll create it...");
@@ -103,11 +153,11 @@ namespace Microsoft.DotNet.DarcLib
 
             try
             {
-                response = await this.ExecuteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/branches/{newBranch}", _logger);
+                response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/branches/{newBranch}", _logger);
 
                 githubRef.Force = true;
                 body = JsonConvert.SerializeObject(githubRef, _serializerSettings);
-                await this.ExecuteGitCommand(
+                await this.ExecuteRemoteGitCommand(
                     new HttpMethod("PATCH"),
                     $"repos/{ownerAndRepo}/git/{gitRef}",
                     _logger,
@@ -118,7 +168,7 @@ namespace Microsoft.DotNet.DarcLib
                 _logger.LogInformation($"'{newBranch}' branch doesn't exist. Creating it...");
 
                 body = JsonConvert.SerializeObject(githubRef, _serializerSettings);
-                response = await this.ExecuteGitCommand(HttpMethod.Post, $"repos/{ownerAndRepo}/git/refs", _logger, body);
+                response = await this.ExecuteRemoteGitCommand(HttpMethod.Post, $"repos/{ownerAndRepo}/git/refs", _logger, body);
 
                 _logger.LogInformation($"Branch '{newBranch}' created in repo '{repoUri}'!");
 
@@ -134,6 +184,14 @@ namespace Microsoft.DotNet.DarcLib
             _logger.LogInformation($"Branch '{newBranch}' exists.");
         }
 
+        /// <summary>
+        /// Commit new changes to a repo
+        /// </summary>
+        /// <param name="filesToCommit">Files to update</param>
+        /// <param name="repoUri">Repository uri to push changes to</param>
+        /// <param name="branch">Repository branch to push changes to</param>
+        /// <param name="commitMessage">Commit message for new commit.</param>
+        /// <returns></returns>
         public async Task PushFilesAsync(List<GitFile> filesToCommit, string repoUri, string branch, string commitMessage)
         {
             using (_logger.BeginScope("Pushing files to {branch}", branch))
@@ -170,7 +228,7 @@ namespace Microsoft.DotNet.DarcLib
                 query.Append($"+author:{author}");
             }
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, $"search/issues?q={query.ToString()}", _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, $"search/issues?q={query.ToString()}", _logger);
 
             JObject responseContent = JObject.Parse(await response.Content.ReadAsStringAsync());
             JArray items = JArray.Parse(responseContent["items"].ToString());
@@ -184,7 +242,7 @@ namespace Microsoft.DotNet.DarcLib
         {
             string url = GetPrPartialAbsolutePath(pullRequestUrl);
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, url, _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, url, _logger);
 
             JObject responseContent = JObject.Parse(await response.Content.ReadAsStringAsync());
 
@@ -216,7 +274,7 @@ namespace Microsoft.DotNet.DarcLib
         {
             string url = GetPrPartialAbsolutePath(pullRequestUrl);
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, url, _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, url, _logger);
 
             JObject responseContent = JObject.Parse(await response.Content.ReadAsStringAsync());
 
@@ -282,7 +340,7 @@ namespace Microsoft.DotNet.DarcLib
 
             var (owner, repo, id) = ParsePullRequestUri(pullRequestUrl);
 
-            await this.ExecuteGitCommand(HttpMethod.Post, $"repos/{owner}/{repo}/issues/{id}/comments", _logger, body);
+            await this.ExecuteRemoteGitCommand(HttpMethod.Post, $"repos/{owner}/{repo}/issues/{id}/comments", _logger, body);
         }
 
         public async Task<List<GitFile>> GetFilesForCommitAsync(string repoUri, string commit, string path)
@@ -362,16 +420,16 @@ namespace Microsoft.DotNet.DarcLib
             }
         }
 
-        public async Task GetCommitMapForPathAsync(string repoUri, string branch, string assetsProducedInCommit, List<GitFile> files, string pullRequestBaseBranch, string path = "eng/common/")
+        /*public async Task GetCommitMapForPathAsync(string repoUri, string branch, string buildCommit, List<GitFile> files, string pullRequestBaseBranch, string path)
         {
             if (path.EndsWith("/"))
             {
                 path = path.Substring(0, path.Length - 1);
             }
-            _logger.LogInformation($"Getting the contents of file/files in '{path}' of repo '{repoUri}' at commit '{assetsProducedInCommit}'");
+            _logger.LogInformation($"Getting the contents of file/files in '{path}' of repo '{repoUri}' at commit '{buildCommit}'");
 
             string ownerAndRepo = GetOwnerAndRepoFromRepoUri(repoUri);
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/contents/{path}?ref={assetsProducedInCommit}", _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/contents/{path}?ref={buildCommit}", _logger);
 
             List<GitHubContent> contents = JsonConvert.DeserializeObject<List<GitHubContent>>(await response.Content.ReadAsStringAsync());
 
@@ -381,69 +439,49 @@ namespace Microsoft.DotNet.DarcLib
                 {
                     if (!GitFileManager.DependencyFiles.Contains(content.Path))
                     {
-                        string fileContent = await GetFileContentsAsync(ownerAndRepo, content.Path);
+                        string fileContent = await GetFileContentsAsync(content.Path, repoUri, );
                         GitFile gitCommit = new GitFile(content.Path, fileContent);
                         files.Add(gitCommit);
                     }
                 }
                 else
                 {
-                    await GetCommitMapForPathAsync(repoUri, branch, assetsProducedInCommit, files, pullRequestBaseBranch, content.Path);
+                    await GetCommitMapForPathAsync(repoUri, branch, buildCommit, files, pullRequestBaseBranch, content.Path);
                 }
             }
 
-            _logger.LogInformation($"Getting the contents of file/files in '{path}' of repo '{repoUri}' at commit '{assetsProducedInCommit}' succeeded!");
-        }
+            _logger.LogInformation($"Getting the contents of file/files in '{path}' of repo '{repoUri}' at commit '{buildCommit}' succeeded!");
+        }*/
 
-        public async Task<string> GetFileContentsAsync(string ownerAndRepo, string path)
+        /// <summary>
+        /// Determine whether a file exists at a specified branch or commit.
+        /// </summary>
+        /// <param name="repoUri">Repository uri</param>
+        /// <param name="filePath">Path of file</param>
+        /// <param name="branch">Branch or commit in to check.</param>
+        /// <returns>True if the file exists, false otherwise.</returns>
+        public async Task<bool> FileExistsAsync(string repoUri, string filePath, string branch)
         {
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/contents/{path}", _logger);
-
-            JObject file = JObject.Parse(await response.Content.ReadAsStringAsync());
-            string encodedContent = file["content"].ToString();
-
-            byte[] data = Convert.FromBase64String(encodedContent);
-            string content = Encoding.UTF8.GetString(data);
-
-            return content;
-        }
-
-        public HttpClient CreateHttpClient(string versionOverride = null)
-        {
-            HttpClient client = new HttpClient
-            {
-                BaseAddress = new Uri(GitHubApiUri)
-            };
-            client.DefaultRequestHeaders.Add("Authorization", $"Token {_personalAccessToken}");
-            client.DefaultRequestHeaders.Add("User-Agent", _userAgent);
-
-            return client;
-        }
-
-        public async Task<string> CheckIfFileExistsAsync(string repoUri, string filePath, string branch)
-        {
-            string commit;
             string ownerAndRepo = GetOwnerAndRepoFromRepoUri(repoUri);
             HttpResponseMessage response;
 
             try
             {
-                response = await this.ExecuteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/contents/{filePath}?ref={branch}", _logger);
+                response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/contents/{filePath}?ref={branch}", _logger);
             }
             catch (HttpRequestException exc) when (exc.Message.Contains(((int)HttpStatusCode.NotFound).ToString()))
             {
-                return null;
+                return false;
             }
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
-            commit = content["sha"].ToString();
 
-            return commit;
+            return string.IsNullOrEmpty(content["sha"].ToString());
         }
 
         public async Task<string> GetLastCommitShaAsync(string ownerAndRepo, string branch)
         {
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/commits/{branch}", _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/commits/{branch}", _logger);
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
 
@@ -459,13 +497,13 @@ namespace Microsoft.DotNet.DarcLib
         {
             string url = $"{GetPrPartialAbsolutePath(pullRequestUrl)}/commits";
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, url, _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, url, _logger);
             JArray content = JArray.Parse(await response.Content.ReadAsStringAsync());
             JToken lastCommit = content.Last;
             string lastCommitSha = lastCommit["sha"].ToString();
 
             var (owner, repo, id) = ParsePullRequestUri(pullRequestUrl);
-            response = await this.ExecuteGitCommand(
+            response = await this.ExecuteRemoteGitCommand(
                 HttpMethod.Get,
                 $"repos/{owner}/{repo}/commits/{lastCommitSha}/status",
                 _logger);
@@ -484,11 +522,16 @@ namespace Microsoft.DotNet.DarcLib
             return statuses;
         }
 
-        public async Task<string> GetPullRequestBaseBranch(string pullRequestUrl)
+        /// <summary>
+        /// Get the source branch for the pull request.
+        /// </summary>
+        /// <param name="pullRequestUrl">url of pull request</param>
+        /// <returns>Branch of pull request.</returns>
+        public async Task<string> GetPullRequestSourceBranch(string pullRequestUrl)
         {
             string url = GetPrPartialAbsolutePath(pullRequestUrl);
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, url, _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, url, _logger);
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
 
             return content["head"]["ref"].ToString();
@@ -569,7 +612,7 @@ namespace Microsoft.DotNet.DarcLib
                 requestUri = GetPrPartialAbsolutePath(uri);
             }
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(method, requestUri, _logger, body);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(method, requestUri, _logger, body);
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
 
@@ -621,7 +664,7 @@ namespace Microsoft.DotNet.DarcLib
             };
 
             string body = JsonConvert.SerializeObject(gitHubCommit, _serializerSettings);
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Post, $"repos/{ownerAndRepo}/git/commits", _logger, body);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Post, $"repos/{ownerAndRepo}/git/commits", _logger, body);
             JToken parsedResponse = JToken.Parse(response.Content.ReadAsStringAsync().Result);
             return parsedResponse["sha"].ToString();
         }
@@ -629,11 +672,11 @@ namespace Microsoft.DotNet.DarcLib
         private async Task<List<GitHubTreeItem>> GetTreeItems(string repoUri, string commit)
         {
             string ownerAndRepo = GetOwnerAndRepoFromRepoUri(repoUri);
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/commits/{commit}", _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/commits/{commit}", _logger);
             JToken parsedResponse = JToken.Parse(response.Content.ReadAsStringAsync().Result);
             Uri treeUrl = new Uri(parsedResponse["commit"]["tree"]["url"].ToString());
 
-            response = await this.ExecuteGitCommand(HttpMethod.Get, $"{treeUrl.PathAndQuery}?recursive=1", _logger);
+            response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, $"{treeUrl.PathAndQuery}?recursive=1", _logger);
             parsedResponse = JToken.Parse(response.Content.ReadAsStringAsync().Result);
 
             JArray tree = JArray.Parse(parsedResponse["tree"].ToString());

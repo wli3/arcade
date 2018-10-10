@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.ApiVersioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Data.SqlClient;
 
 namespace Maestro.Web.Api.v2018_07_16.Controllers
 {
@@ -89,22 +90,30 @@ namespace Maestro.Web.Api.v2018_07_16.Controllers
         [SwaggerResponse((int) HttpStatusCode.Created)]
         public async Task<IActionResult> AddBuildToChannel(int channelId, int buildId)
         {
-            Data.Models.Channel channel = await _context.Channels.FindAsync(channelId);
-            if (channel == null)
+            try
             {
-                return NotFound(new ApiError($"The channel with id '{channelId}' was not found."));
-            }
+                Data.Models.Channel channel = await _context.Channels.FindAsync(channelId);
+                if (channel == null)
+                {
+                    return NotFound(new ApiError($"The channel with id '{channelId}' was not found."));
+                }
 
-            Data.Models.Build build = await _context.Builds.FindAsync(buildId);
-            if (build == null)
+                Data.Models.Build build = await _context.Builds.FindAsync(buildId);
+                if (build == null)
+                {
+                    return NotFound(new ApiError($"The build with id '{buildId}' was not found."));
+                }
+
+                var buildChannel = new Data.Models.BuildChannel { Channel = channel, Build = build };
+                await _context.BuildChannels.AddAsync(buildChannel);
+                await _context.SaveChangesAsync();
+                return StatusCode((int)HttpStatusCode.Created);
+            }
+            catch (DbUpdateException dbEx) when (dbEx.InnerException is SqlException sqlEx &&
+                                                 sqlEx.Message.Contains("Cannot insert duplicate key in object"))
             {
-                return NotFound(new ApiError($"The build with id '{buildId}' was not found."));
+                return Conflict(new ApiError($"Build with id '{buildId}' is already associated with the channel '{channelId}'"));
             }
-
-            var buildChannel = new Data.Models.BuildChannel {Channel = channel, Build = build};
-            await _context.BuildChannels.AddAsync(buildChannel);
-            await _context.SaveChangesAsync();
-            return StatusCode((int) HttpStatusCode.Created);
         }
     }
 }

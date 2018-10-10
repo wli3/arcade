@@ -28,10 +28,6 @@ namespace Microsoft.DotNet.DarcLib
         private readonly ILogger _logger;
         private readonly JsonSerializerSettings _serializerSettings;
 
-        private string AzureDevOpsApiUri { get; set; }
-
-        private string AzureDevOpsPrUri { get; set; }
-
         public AzureDevOpsClient(string accessToken, ILogger logger)
         {
             _personalAccessToken = accessToken;
@@ -43,7 +39,56 @@ namespace Microsoft.DotNet.DarcLib
             };
         }
 
-        private VssConnection CreateConnection(string uri)
+        /// <summary>
+        /// Executes a remote git command on Azure DevOps.
+        /// </summary>
+        /// <param name="accountName">Account name used for request</param>
+        /// <param name="projectName">Project name used for the request</param>
+        /// <param name="apiPath">Path to access (relative to base URI).</param>
+        /// <returns></returns>
+        private async Task<HttpResponseMessage> ExecuteRemoteGitCommand(HttpMethod method, string accountName,
+                                                                        string projectName, string apiPath, ILogger logger,
+                                                                        string body = null, string versionOverride = null)
+        {
+            // Construct the API URI
+            string baseUri = "https://dev.azure.com/{accountName}/{projectName}/_apis/";
+            using (HttpClient client = CreateHttpClient(baseUri, versionOverride))
+            {
+                HttpRequestManager requestManager = new HttpRequestManager(client, method, apiPath, logger, body, versionOverride);
+
+                return await requestManager.ExecuteAsync();
+            }
+        }
+
+        /// <summary>
+        /// Create a new Http client for talking to Azure DevOps
+        /// </summary>
+        /// <param name="versionOverride">Override the API version.  Defaults to DefaultApiVersion</param>
+        /// <param name="apiUri">Base URI of the API</param>
+        /// <returns>New http client</returns>
+        /// <remarks>Should we be doing this? Typically the number of HTTP clients is supposed to be kept to a minimum,
+        /// and reused for best performance. An alternative would be to keep the HttpClient and base uri on the client,
+        /// and check that the repo URIs passed to various methods either do not begin with the base URI or have the same 
+        /// base URI.</remarks>
+        private HttpClient CreateHttpClient(string apiUri, string versionOverride = null)
+        {
+            HttpClient client = new HttpClient
+            {
+                BaseAddress = new Uri(apiUri)
+            };
+            client.DefaultRequestHeaders.Add("Accept", $"application/json;api-version={versionOverride ?? DefaultApiVersion}");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                Convert.ToBase64String(Encoding.ASCII.GetBytes(string.Format("{0}:{1}", "", _personalAccessToken))));
+
+            return client;
+        }
+
+        /// <summary>
+        /// Create a visual studio services connection, typically used for manipulating pull requests
+        /// </summary>
+        /// <param name="uri">URI of pull request or other Azure DevOps item.</param>
+        /// <returns>New VssConnection object</returns>
+        private VssConnection CreateVssConnection(string uri)
         {
             var collectionUri = new UriBuilder(uri)
             {
@@ -55,24 +100,39 @@ namespace Microsoft.DotNet.DarcLib
             return new VssConnection(collectionUri.Uri, creds);
         }
 
-        public async Task<string> GetFileContentsAsync(string filePath, string repoUri, string branch)
+        /// <summary>
+        /// Retrieve the contents of a file in a repository.
+        /// </summary>
+        /// <param name="filePath">Path of file (relative to repo root)</param>
+        /// <param name="repoUri">URI of repo containing the file.</param>
+        /// <param name="branchOrCommit">Branch or commit to obtain file from.</param>
+        /// <returns>Content of file.</returns>
+        public async Task<string> GetFileContentsAsync(string filePath, string repoUri, string branchOrCommit)
         {
-            _logger.LogInformation($"Getting the contents of file '{filePath}' from repo '{repoUri}' in branch '{branch}'...");
+            _logger.LogInformation($"Getting the contents of file '{filePath}' from repo '{repoUri}' in branch '{branchOrCommit}'...");
 
-            string repoName = SetApiUriAndGetRepoName(repoUri);
+            var (accountName, projectName, repositoryName) = ParseRepositoryUri(repoUri);
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, $"repositories/{repoName}/items?path={filePath}&version={branch}&includeContent=true", _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, accountName, projectName,
+                $"git/repositories/{repositoryName}/items?path={filePath}&version={branchOrCommit}&includeContent=true", _logger);
 
-            _logger.LogInformation($"Getting the contents of file '{filePath}' from repo '{repoUri}' in branch '{branch}' succeeded!");
+            _logger.LogInformation($"Getting the contents of file '{filePath}' from repo '{repoUri}' in branch '{branchOrCommit}' succeeded!");
 
             JObject responseContent = JObject.Parse(await response.Content.ReadAsStringAsync());
 
             return responseContent["content"].ToString();
         }
 
+        /// <summary>
+        /// Create a new branch in a repo.
+        /// </summary>
+        /// <param name="repoUri">Repository to create branch in.</param>
+        /// <param name="newBranch">New branch name.</param>
+        /// <param name="baseBranch">Branch to create @newBranch off of.</param>
+        /// <returns></returns>
         public async Task CreateBranchAsync(string repoUri, string newBranch, string baseBranch)
         {
-            string repoName = SetApiUriAndGetRepoName(repoUri);
+            var (accountName, projectName, repoName) = ParseRepositoryUri(repoUri);
             string body;
 
             List<AzureDevOpsRef> azureDevOpsRefs = new List<AzureDevOpsRef>();
@@ -81,7 +141,7 @@ namespace Microsoft.DotNet.DarcLib
 
             string latestSha = await GetLastCommitShaAsync(repoName, baseBranch);
 
-            response = await this.ExecuteGitCommand(HttpMethod.Get, $"repositories/{repoName}/refs/heads/{newBranch}", _logger);
+            response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, accountName, projectName, $"git/repositories/{repoName}/refs/heads/{newBranch}", _logger);
             JObject responseContent = JObject.Parse(await response.Content.ReadAsStringAsync());
 
             // Azure DevOps doesn't fail with a 404 if a branch does not exist, it just returns an empty response object...
@@ -103,23 +163,31 @@ namespace Microsoft.DotNet.DarcLib
             }
 
             body = JsonConvert.SerializeObject(azureDevOpsRefs, _serializerSettings);
-            await this.ExecuteGitCommand(HttpMethod.Post, $"repositories/{repoName}/refs", _logger, body);
+            await this.ExecuteRemoteGitCommand(HttpMethod.Post, accountName, projectName, $"git/repositories/{repoName}/refs", _logger, body);
         }
 
+        /// <summary>
+        /// Commit new changes to a repo
+        /// </summary>
+        /// <param name="filesToCommit">Files to update</param>
+        /// <param name="repoUri">Repository uri to push changes to</param>
+        /// <param name="branch">Repository branch to push changes to</param>
+        /// <param name="commitMessage">Commit message for new commit.</param>
+        /// <returns></returns>
         public async Task PushFilesAsync(List<GitFile> filesToCommit, string repoUri, string branch, string commitMessage)
         {
             _logger.LogInformation($"Pushing files to '{branch}'...");
 
             List<AzureDevOpsChange> changes = new List<AzureDevOpsChange>();
-            string repoName = SetApiUriAndGetRepoName(repoUri);
+            var (accountName, projectName, repoName) = ParseRepositoryUri(repoUri);
 
             foreach (GitFile gitfile in filesToCommit)
             {
-                string blobSha = await CheckIfFileExistsAsync(repoUri, gitfile.FilePath, branch);
+                bool exists = await FileExistsAsync(repoUri, gitfile.FilePath, branch);
 
                 AzureDevOpsChange change = new AzureDevOpsChange(gitfile.FilePath, gitfile.Content);
 
-                if (!string.IsNullOrEmpty(blobSha))
+                if (exists)
                 {
                     change.ChangeType = AzureDevOpsChangeType.Edit;
                 }
@@ -137,14 +205,14 @@ namespace Microsoft.DotNet.DarcLib
             string body = JsonConvert.SerializeObject(azureDevOpsPush, _serializerSettings);
 
             // Azure DevOps' contents API is only supported in version 5.0-preview.2
-            await this.ExecuteGitCommand(HttpMethod.Post, $"repositories/{repoName}/pushes", _logger, body, "5.0-preview.2");
+            await this.ExecuteRemoteGitCommand(HttpMethod.Post, accountName, projectName, $"git/repositories/{repoName}/pushes", _logger, body, "5.0-preview.2");
 
             _logger.LogInformation($"Pushing files to '{branch}' succeeded!");
         }
 
         public async Task<IEnumerable<int>> SearchPullRequestsAsync(string repoUri, string pullRequestBranch, PrStatus status, string keyword = null, string author = null)
         {
-            string repoName = SetApiUriAndGetRepoName(repoUri);
+            var (accountName, projectName, repoName) = ParseRepositoryUri(repoUri);
             StringBuilder query = new StringBuilder();
             AzureDevOpsPrStatus prStatus;
 
@@ -176,7 +244,8 @@ namespace Microsoft.DotNet.DarcLib
                 query.Append($"&searchCriteria.creatorId={author}");
             }
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, $"repositories/{repoName}/pullrequests?{query.ToString()}", _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, accountName, projectName, 
+                $"git/repositories/{repoName}/pullrequests?{query.ToString()}", _logger);
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
             JArray values = JArray.Parse(content["value"].ToString());
@@ -188,9 +257,9 @@ namespace Microsoft.DotNet.DarcLib
 
         public async Task<PrStatus> GetPullRequestStatusAsync(string pullRequestUrl)
         {
-            string uri = GetPrPartialAbsolutePath(pullRequestUrl);
+            var (accountName, projectName, id) = ParsePullRequestUri(pullRequestUrl);
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, uri, _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, null, null, pullRequestUrl, _logger);
 
             JObject responseContent = JObject.Parse(await response.Content.ReadAsStringAsync());
 
@@ -219,28 +288,28 @@ namespace Microsoft.DotNet.DarcLib
         {
             string url = GetPrPartialAbsolutePath(pullRequestUrl);
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, url, _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, null,  null, url, _logger);
 
             JObject responseContent = JObject.Parse(await response.Content.ReadAsStringAsync());
 
             return responseContent["repository"]["remoteUrl"].ToString();
         }
 
-        public async Task<string> CreatePullRequestAsync(string repoUri, string mergeWithBranch, string sourceBranch, string title = null, string description = null)
+        public async Task<string> CreatePullRequestAsync(string repoUri, string targetBranch, string sourceBranch, string title = null, string description = null)
         {
-            string linkToPullRquest = await CreateOrUpdatePullRequestAsync(repoUri, mergeWithBranch, sourceBranch, HttpMethod.Post,title, description);
+            string linkToPullRquest = await CreateOrUpdatePullRequestAsync(repoUri, targetBranch, sourceBranch, HttpMethod.Post,title, description);
             return linkToPullRquest;
         }
 
-        public async Task<string> UpdatePullRequestAsync(string pullRequestUri, string mergeWithBranch, string sourceBranch, string title = null, string description = null)
+        public async Task<string> UpdatePullRequestAsync(string pullRequestUri, string targetBranch, string sourceBranch, string title = null, string description = null)
         {
-            string linkToPullRquest = await CreateOrUpdatePullRequestAsync(pullRequestUri, mergeWithBranch, sourceBranch, new HttpMethod("PATCH"), title, description);
+            string linkToPullRquest = await CreateOrUpdatePullRequestAsync(pullRequestUri, targetBranch, sourceBranch, new HttpMethod("PATCH"), title, description);
             return linkToPullRquest;
         }
 
         public async Task MergePullRequestAsync(string pullRequestUrl, MergePullRequestParameters parameters)
         {
-            var connection = CreateConnection(pullRequestUrl);
+            var connection = CreateVssConnection(pullRequestUrl);
             var client = await connection.GetClientAsync<GitHttpClient>();
 
             var (team, repo, id) = ParsePullRequestUri(pullRequestUrl);
@@ -263,23 +332,9 @@ namespace Microsoft.DotNet.DarcLib
                 id);
         }
 
-        private static Regex prUriPattern = new Regex(@"^/(?<team>[^/])/_apis/git/repositories/(?<repo>[^/])/pullRequests/(?<id>\d+)$");
-
-        private (string team, string repo, int id) ParsePullRequestUri(string uri)
-        {
-            var u = new UriBuilder(uri);
-            var match = prUriPattern.Match(u.Path);
-            if (!match.Success)
-            {
-                return default;
-            }
-
-            return (match.Groups["team"].Value, match.Groups["repo"].Value, int.Parse(match.Groups["id"].Value));
-        }
-
         public async Task<string> CreatePullRequestCommentAsync(string pullRequestUrl, string message)
         {
-            var connection = CreateConnection(pullRequestUrl);
+            var connection = CreateVssConnection(pullRequestUrl);
             var client = await connection.GetClientAsync<GitHttpClient>();
 
             var (team, repo, id) = ParsePullRequestUri(pullRequestUrl);
@@ -303,7 +358,7 @@ namespace Microsoft.DotNet.DarcLib
         {
             var (threadId, commentIdValue) = ParseCommentId(commentId);
 
-            var connection = CreateConnection(pullRequestUrl);
+            var connection = CreateVssConnection(pullRequestUrl);
             var client = await connection.GetClientAsync<GitHttpClient>();
 
             var (team, repo, id) = ParsePullRequestUri(pullRequestUrl);
@@ -330,7 +385,8 @@ namespace Microsoft.DotNet.DarcLib
 
         public async Task CommentOnPullRequestAsync(string pullRequestUrl, string message)
         {
-            SetApiUriAndGetRepoName(pullRequestUrl);
+            // TODO: This is currently wrong.
+            var (accountName, projectName, repoName) = ParseRepositoryUri(pullRequestUrl);
             List<AzureDevOpsCommentBody> comments = new List<AzureDevOpsCommentBody>
             {
                 new AzureDevOpsCommentBody(message)
@@ -340,7 +396,7 @@ namespace Microsoft.DotNet.DarcLib
 
             string body = JsonConvert.SerializeObject(comment, _serializerSettings);
 
-            await this.ExecuteGitCommand(HttpMethod.Post, $"{pullRequestUrl}/threads", _logger, body);
+            await this.ExecuteRemoteGitCommand(HttpMethod.Post, accountName, projectName, $"{pullRequestUrl}/threads", _logger, body);
         }
 
         public async Task<List<GitFile>> GetFilesForCommitAsync(string repoUri, string commit, string path)
@@ -356,9 +412,10 @@ namespace Microsoft.DotNet.DarcLib
         {
             _logger.LogInformation($"Getting the contents of file/files in '{path}' of repo '{repoUri}' at commit '{commit}'");
 
-            string repoName = SetApiUriAndGetRepoName(repoUri);
+            var (accountName, projectName, repoName) = ParseRepositoryUri(repoUri);
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, $"repositories/{repoName}/items?scopePath={path}&version={commit}&includeContent=true&versionType=commit&recursionLevel=full", _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, accountName, projectName, 
+                $"git/repositories/{repoName}/items?scopePath={path}&version={commit}&includeContent=true&versionType=commit&recursionLevel=full", _logger);
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
             List<AzureDevOpsItem> items = JsonConvert.DeserializeObject<List<AzureDevOpsItem>>(Convert.ToString(content["value"]));
@@ -369,7 +426,7 @@ namespace Microsoft.DotNet.DarcLib
                 {
                     if (!GitFileManager.DependencyFiles.Contains(item.Path))
                     {
-                        string fileContent = await GetFileContentsAsync(repoName, item.Path);
+                        string fileContent = await GetFileContentsAsync(item.Path, repoUri, commit);
                         GitFile gitCommit = new GitFile(item.Path, fileContent);
                         files.Add(gitCommit);
                     }
@@ -379,21 +436,19 @@ namespace Microsoft.DotNet.DarcLib
             _logger.LogInformation($"Getting the contents of file/files in '{path}' of repo '{repoUri}' at commit '{commit}' succeeded!");
         }
 
-        public async Task<string> GetFileContentsAsync(string ownerAndRepo, string path)
+        /// <summary>
+        /// Get the latest commit sha on a given branch for a repo
+        /// </summary>
+        /// <param name="repoUri">Repository to get latest commit for.</param>
+        /// <param name="branch">Branch to get get latest commit for.</param>
+        /// <returns>Latest commit sha.</returns>
+        /// <remarks>Throws if no commits were found.</remarks>
+        public async Task<string> GetLastCommitShaAsync(string repoUri, string branch)
         {
-            string encodedContent;
+            var (accountName, projectName, repoName) = ParseRepositoryUri(repoUri);
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, $"repositories/{ownerAndRepo}/items?path={path}&includeContent=true", _logger);
-
-            JObject file = JObject.Parse(await response.Content.ReadAsStringAsync());
-            encodedContent = file["content"].ToString();
-
-            return encodedContent;
-        }
-
-        public async Task<string> GetLastCommitShaAsync(string ownerAndRepo, string branch)
-        {
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, $"repositories/{ownerAndRepo}/commits?branch={branch}", _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, accountName, projectName, 
+                $"git/repositories/{repoName}/commits?branch={branch}", _logger);
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
 
@@ -401,7 +456,7 @@ namespace Microsoft.DotNet.DarcLib
 
             if (!values.Any())
             {
-                throw new Exception($"No commits found in branch '{branch}' of '{ownerAndRepo}'");
+                throw new Exception($"No commits found in branch '{branch}' of '{repoName}'");
             }
 
             return values[0]["commitId"].ToString();
@@ -409,9 +464,10 @@ namespace Microsoft.DotNet.DarcLib
 
         public async Task<IList<Check>> GetPullRequestChecksAsync(string pullRequestUrl)
         {
+            var (accountName, projectName, id) = ParsePullRequestUri(pullRequestUrl);
             string url = $"{pullRequestUrl}/statuses";
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, url, _logger);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, accountName, projectName, url, _logger);
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
             JArray values = JArray.Parse(content["value"].ToString());
@@ -449,23 +505,30 @@ namespace Microsoft.DotNet.DarcLib
             return statuses;
         }
 
-        public async Task<string> GetPullRequestBaseBranch(string pullRequestUrl)
+        /// <summary>
+        /// Get the source branch for the pull request.
+        /// </summary>
+        /// <param name="pullRequestUrl">url of pull request</param>
+        /// <returns>Branch of pull request.</returns>
+        public async Task<string> GetPullRequestSourceBranch(string pullRequestUrl)
         {
-            HttpResponseMessage response = await this.ExecuteGitCommand(HttpMethod.Get, pullRequestUrl, _logger);
+            var (accountName, projectName, id) = ParsePullRequestUri(pullRequestUrl);
+
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, accountName, projectName, pullRequestUrl, _logger);
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
-            var baseBranch = content["sourceRefName"].ToString();
+            var sourceBranch = content["sourceRefName"].ToString();
             const string refsHeads = "refs/heads/";
-            if (baseBranch.StartsWith(refsHeads))
+            if (sourceBranch.StartsWith(refsHeads))
             {
-                baseBranch = baseBranch.Substring(refsHeads.Length);
+                sourceBranch = sourceBranch.Substring(refsHeads.Length);
             }
-            return baseBranch;
+            return sourceBranch;
         }
 
         public async Task<IList<Commit>> GetPullRequestCommitsAsync(string pullRequestUrl)
         {
-            var connection = CreateConnection(pullRequestUrl);
+            var connection = CreateVssConnection(pullRequestUrl);
             var client = await connection.GetClientAsync<GitHttpClient>();
 
             var (team, repo, id) = ParsePullRequestUri(pullRequestUrl);
@@ -475,79 +538,120 @@ namespace Microsoft.DotNet.DarcLib
             return commits.Select(c => new Commit(c.Author.Name, c.CommitId)).ToList();
         }
 
-        public HttpClient CreateHttpClient(string versionOverride = null)
+        /// <summary>
+        /// Determine whether a file exists at a specified branch or commit.
+        /// </summary>
+        /// <param name="repoUri">Repository uri</param>
+        /// <param name="filePath">Path of file</param>
+        /// <param name="branch">Branch or commit in to check.</param>
+        /// <returns>True if the file exists, false otherwise.</returns>
+        public async Task<bool> FileExistsAsync(string repoUri, string filePath, string branch)
         {
-            HttpClient client = new HttpClient
-            {
-                BaseAddress = new Uri(AzureDevOpsApiUri)
-            };
-            client.DefaultRequestHeaders.Add("Accept", $"application/json;api-version={versionOverride ?? DefaultApiVersion}");
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes(string.Format("{0}:{1}", "", _personalAccessToken))));
-
-            return client;
-        }
-
-        public async Task<string> CheckIfFileExistsAsync(string repoUri, string filePath, string branch)
-        {
-            string repoName = SetApiUriAndGetRepoName(repoUri);
+            var (accountName, projectName, repoName) = ParseRepositoryUri(repoUri);
             HttpResponseMessage response;
 
             try
             {
-                response = await this.ExecuteGitCommand(HttpMethod.Get, $"repositories/{repoName}/items?path={filePath}&versionDescriptor[version]={branch}", _logger);
+                response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, accountName, projectName, 
+                    $"git/repositories/{repoName}/items?path={filePath}&versionDescriptor[version]={branch}", _logger);
             }
             catch (HttpRequestException exc) when (exc.Message.Contains(((int)HttpStatusCode.NotFound).ToString()))
             {
-                return null;
+                return false;
             }
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
 
-            return content["objectId"].ToString();
+            return string.IsNullOrEmpty(content["objectId"].ToString());
         }
 
-        private string SetApiUriAndGetRepoName(string repoUri)
+        #region URI parsing
+
+        private static readonly Regex prUriPattern = new Regex(@"^/(?<team>[^/])/_apis/git/repositories/(?<repo>[^/])/pullRequests/(?<id>\d+)$");
+
+        private (string team, string repo, int id) ParsePullRequestUri(string uri)
+        {
+            var u = new UriBuilder(uri);
+            var match = prUriPattern.Match(u.Path);
+            if (!match.Success)
+            {
+                return default;
+            }
+
+            return (match.Groups["team"].Value, match.Groups["repo"].Value, int.Parse(match.Groups["id"].Value));
+        }
+
+        // Variety of forms are available for the account repo URI.
+        // https://dev.azure.com/dnceng/internal/_git/dotnet-arcade
+        // https://dnceng@dev.azure.com/dnceng/internal/_git/dotnet-arcade
+        private const string accountNameCaptureName = "accountName";
+        private const string projectNameCaptureName = "projectName";
+        private const string repoNameCaptureName = "repoName";
+        private static readonly string projectRepoCaptureSuffix = $"(?<{projectNameCaptureName}>.+)\\/_git\\/(?<{repoNameCaptureName}>.+)";
+        private static readonly string form1 = $"(^https:\\/\\/)?dev\\.azure\\.com\\/(?<{accountNameCaptureName}>.+?)\\/{projectRepoCaptureSuffix}";
+        private static readonly string form2 = $"(^https:\\/\\/)?(?<{accountNameCaptureName}>.+?)@dev\\.azure\\.com\\/{projectRepoCaptureSuffix}";
+
+        /// <summary>
+        /// Parse a repository uri to extract the elements.
+        /// </summary>
+        /// <param name="repoUri">Repository uri</param>
+        /// <returns>Tuple of account name, project name and repository name.</returns>
+        private (string accountName, string projectName, string repositoryName) ParseRepositoryUri(string repoUri)
         {
             Uri uri = new Uri(repoUri);
             string hostName = uri.Host;
-            string accountName;
-            string projectName;
-            string repoName;
+            string accountName = null;
+            string projectName = null;
+            string repoName = null;
 
-            Match hostNameMatch = Regex.Match(hostName, @"^(?<accountname>[a-z0-9]+)\.*");
-
-            if (hostNameMatch.Success)
+            List<Regex> uriRegex = new List<Regex>
             {
-                accountName = hostNameMatch.Groups["accountname"].Value;
-            }
-            else
+                new Regex(form1),
+                new Regex(form2)
+            };
+
+            // Match available regexes.
+            foreach (Regex regex in uriRegex)
             {
-                throw new ArgumentException($"Repository URI host name '{hostName}' should be of the form dev.azure.com/<accountname> i.e. https://dev.azure.com/<accountname>");
+                Match m = regex.Match(repoUri);
+                // If we are successful, then we should have all of the named capture groups.
+                if (m.Success)
+                {
+                    if (!m.Groups[accountNameCaptureName].Success ||
+                        !m.Groups[projectNameCaptureName].Success ||
+                        !m.Groups[repoNameCaptureName].Success){
+                        throw new ArgumentException($"Repository URI should be of the form dev.azure.com/<accountName>/<projectName>/_git/<repoName> " +
+                                $"or <accountName>@dev.azure.com/<projectName>/_git/<repoName>");
+                    }
+                    accountName = m.Groups[accountNameCaptureName].Value;
+                    projectName = m.Groups[projectNameCaptureName].Value;
+                    repoName = m.Groups[repoNameCaptureName].Value;
+                    break;
+                }
             }
-
-            string absolutePath = uri.AbsolutePath;
-            Match projectAndRepoMatch = Regex.Match(absolutePath, @"[\/DefaultCollection]*\/(?<projectname>.+)\/_git\/(?<reponame>.+)");
-
-            if (projectAndRepoMatch.Success)
+            
+            if (accountName == null)
             {
-                projectName = projectAndRepoMatch.Groups["projectname"].Value;
-                repoName = projectAndRepoMatch.Groups["reponame"].Value;
-            }
-            else
-            {
-                throw new ArgumentException($"Repository URI host name '{absolutePath}' should have a project and repo name. i.e. /DefaultCollection/<projectname>/_git/<reponame>");
+                throw new ArgumentException($"Repository URI should be of the form dev.azure.com/<accountName>/<projectName>/_git/<repoName> " +
+                                            $"or <accountName>@dev.azure.com/<projectName>/_git/<repoName>");
             }
 
-            AzureDevOpsApiUri = $"https://dev.azure.com/{accountName}/{projectName}/_apis/git/";
-            AzureDevOpsPrUri = $"https://dev.azure.com/{accountName}/{projectName}/_git/{repoName}/pullrequest/";
-
-            return repoName;
+            return (accountName, projectName, repoName);
         }
+
+        private string GetPrPartialAbsolutePath(string prLink)
+        {
+            Uri uri = new Uri(prLink);
+            string toRemove = $"{uri.Host}/_apis/git/";
+            return prLink.Replace(toRemove, string.Empty);
+        }
+
+        #endregion
 
         private async Task<string> CreateOrUpdatePullRequestAsync(string uri, string mergeWithBranch, string sourceBranch, HttpMethod method, string title = null, string description = null)
         {
             string requestUri;
-            string repoName = SetApiUriAndGetRepoName(uri);
+            var (accountName, projectName, repoName) = ParseRepositoryUri(uri);
 
             title = !string.IsNullOrEmpty(title) ? $"{PullRequestProperties.TitleTag} {title}" : PullRequestProperties.Title;
             description = description ?? PullRequestProperties.Description;
@@ -558,27 +662,18 @@ namespace Microsoft.DotNet.DarcLib
 
             if (method == HttpMethod.Post)
             {
-                requestUri = $"repositories/{repoName}/pullrequests";
+                requestUri = $"git/repositories/{repoName}/pullrequests";
             }
             else
             {
                 requestUri = GetPrPartialAbsolutePath(uri);
             }
 
-            HttpResponseMessage response = await this.ExecuteGitCommand(method, requestUri, _logger, body);
+            HttpResponseMessage response = await this.ExecuteRemoteGitCommand(method, accountName, projectName, requestUri, _logger, body);
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
 
-            Console.WriteLine($"Browser ready link for this PR is: '{AzureDevOpsPrUri}{content["pullRequestId"].ToString()}'");
-
             return content["url"].ToString();
-        }
-
-        private string GetPrPartialAbsolutePath(string prLink)
-        {
-            Uri uri = new Uri(prLink);
-            string toRemove = $"{uri.Host}/_apis/git/";
-            return prLink.Replace(toRemove, string.Empty);
         }
     }
 }

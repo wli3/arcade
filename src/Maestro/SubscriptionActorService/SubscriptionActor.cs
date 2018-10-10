@@ -237,7 +237,7 @@ This pull request will no longer be tracked by maestro.");
             if (maybePr.HasValue)
             {
                 pr = maybePr.Value;
-                await darc.UpdatePullRequestAsync(pr.Url, build.Commit, targetBranch, assets, title, description);
+                await darc.UpdatePullRequestAsync(pr.Url, build.Commit, build.Repository, targetBranch, assets, title, description);
             }
             else
             {
@@ -245,6 +245,7 @@ This pull request will no longer be tracked by maestro.");
                     targetRepository,
                     targetBranch,
                     build.Commit,
+                    build.Repository,
                     assets,
                     pullRequestTitle: title,
                     pullRequestDescription: description);

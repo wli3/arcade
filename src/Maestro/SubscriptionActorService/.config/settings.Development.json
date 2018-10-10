@@ -2,5 +2,9 @@
   "KeyVaultUri": "https://maestrolocal.vault.azure.net/",
   "BuildAssetRegistry": {
     "ConnectionString": "Data Source=localhost\\SQLEXPRESS;Initial Catalog=BuildAssetRegistry;Integrated Security=true"
+  },
+  "AzureDevOpsPATs": {
+    "devdiv": "[vault(build-asset-registry-sql-connection-string)]",
+    "dnceng": "[vault(dnceng-code-rw)]"
   }
 }
