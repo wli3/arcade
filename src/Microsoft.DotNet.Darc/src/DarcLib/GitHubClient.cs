@@ -479,8 +479,15 @@ namespace Microsoft.DotNet.DarcLib
             return string.IsNullOrEmpty(content["sha"].ToString());
         }
 
-        public async Task<string> GetLastCommitShaAsync(string ownerAndRepo, string branch)
+        /// <summary>
+        /// Get the latest commit sha on a given branch for a repo
+        /// </summary>
+        /// <param name="repoUri">Repository to get latest commit in.</param>
+        /// <param name="branch">Branch to get get latest commit in.</param>
+        /// <returns>Latest commit sha.</returns>
+        public async Task<string> GetLastCommitShaAsync(string repoUri, string branch)
         {
+            string ownerAndRepo = GetOwnerAndRepoFromRepoUri(repoUri);
             HttpResponseMessage response = await this.ExecuteRemoteGitCommand(HttpMethod.Get, $"repos/{ownerAndRepo}/commits/{branch}", _logger);
 
             JObject content = JObject.Parse(await response.Content.ReadAsStringAsync());
