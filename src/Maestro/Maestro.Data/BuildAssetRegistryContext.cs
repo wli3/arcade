@@ -74,9 +74,7 @@ namespace Maestro.Data
         {
             base.OnModelCreating(builder);
 
-            builder.Entity<Channel>()
-                .HasIndex(c => c.Name)
-                .IsUnique();
+            builder.Entity<Channel>().HasIndex(c => c.Name).IsUnique();
 
             builder.Entity<BuildChannel>().HasKey(bc => new {bc.BuildId, bc.ChannelId});
 
@@ -105,7 +103,8 @@ namespace Maestro.Data
             builder.ForSqlServerIsSystemVersioned<SubscriptionUpdate, SubscriptionUpdateHistory>("1 MONTHS");
 
             builder.Entity<SubscriptionUpdateHistory>()
-                .HasIndex("SubscriptionId") // a clustered columnstore index can have no fields defined, but EF needs at least one
+                .HasIndex(
+                    "SubscriptionId") // a clustered columnstore index can have no fields defined, but EF needs at least one
                 .ForSqlServerIsClustered()
                 .ForSqlServerIsColumnstore();
 
@@ -127,7 +126,7 @@ FOR SYSTEM_TIME ALL
                                 ErrorMessage = u.ErrorMessage,
                                 Method = u.Method,
                                 Arguments = u.Arguments,
-                                Timestamp = EF.Property<DateTime>(u, "SysStartTime"),
+                                Timestamp = EF.Property<DateTime>(u, "SysStartTime")
                             }));
         }
 

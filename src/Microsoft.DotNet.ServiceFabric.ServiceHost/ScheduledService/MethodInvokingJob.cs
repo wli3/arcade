@@ -46,8 +46,7 @@ namespace Microsoft.DotNet.ServiceFabric.ServiceHost
                     ex,
                     new Dictionary<string, string>
                     {
-                        ["scheduledMethod"] = method.Name,
-                        ["serviceType"] = service?.GetType().FullName
+                        ["scheduledMethod"] = method.Name, ["serviceType"] = service?.GetType().FullName
                     });
             }
         }

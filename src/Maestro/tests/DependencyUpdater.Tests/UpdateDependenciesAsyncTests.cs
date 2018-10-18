@@ -57,11 +57,7 @@ namespace DependencyUpdater.Tests
                 TargetRepository = "target.repo",
                 TargetBranch = "target.branch",
                 PolicyObject =
-                    new SubscriptionPolicy
-                    {
-                        MergePolicies = null,
-                        UpdateFrequency = UpdateFrequency.EveryBuild
-                    },
+                    new SubscriptionPolicy {MergePolicies = null, UpdateFrequency = UpdateFrequency.EveryBuild},
                 LastAppliedBuild = build
             };
             var repoInstallation = new RepoInstallation {Repository = "target.repo", InstallationId = 1};

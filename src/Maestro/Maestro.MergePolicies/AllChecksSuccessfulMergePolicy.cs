@@ -11,7 +11,8 @@ using Microsoft.DotNet.DarcLib;
 namespace Maestro.MergePolicies
 {
     /// <summary>
-    ///   Merge the PR when it has more than one check and they are all successful, ignoring checks specified in the "ignoreChecks" property.
+    ///     Merge the PR when it has more than one check and they are all successful, ignoring checks specified in the
+    ///     "ignoreChecks" property.
     /// </summary>
     public class AllChecksSuccessfulMergePolicy : MergePolicy
     {

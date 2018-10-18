@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace Microsoft.DotNet.DarcLib
@@ -11,7 +10,7 @@ namespace Microsoft.DotNet.DarcLib
     public interface IGitRepo
     {
         /// <summary>
-        /// Create a new branch in a repo.
+        ///     Create a new branch in a repo.
         /// </summary>
         /// <param name="repoUri">Repository to create branch in.</param>
         /// <param name="newBranch">New branch name.</param>
@@ -20,7 +19,7 @@ namespace Microsoft.DotNet.DarcLib
         Task CreateBranchAsync(string repoUri, string newBranch, string baseBranch);
 
         /// <summary>
-        /// Commit new changes to a repo
+        ///     Commit new changes to a repo
         /// </summary>
         /// <param name="filesToCommit">Files to update</param>
         /// <param name="repoUri">Repository uri to push changes to</param>
@@ -29,15 +28,30 @@ namespace Microsoft.DotNet.DarcLib
         /// <returns></returns>
         Task PushFilesAsync(List<GitFile> filesToCommit, string repoUri, string branch, string commitMessage);
 
-        Task<IEnumerable<int>> SearchPullRequestsAsync(string repoUri, string pullRequestBranch, PrStatus status, string keyword = null, string author = null);
+        Task<IEnumerable<int>> SearchPullRequestsAsync(
+            string repoUri,
+            string pullRequestBranch,
+            PrStatus status,
+            string keyword = null,
+            string author = null);
 
         Task<PrStatus> GetPullRequestStatusAsync(string pullRequestUrl);
 
         Task<string> GetPullRequestRepo(string pullRequestUrl);
 
-        Task<string> CreatePullRequestAsync(string repoUri, string targetBranch, string sourceBranch, string title = null, string description = null);
+        Task<string> CreatePullRequestAsync(
+            string repoUri,
+            string targetBranch,
+            string sourceBranch,
+            string title = null,
+            string description = null);
 
-        Task<string> UpdatePullRequestAsync(string pullRequestUri, string targetBranch, string sourceBranch, string title = null, string description = null);
+        Task<string> UpdatePullRequestAsync(
+            string pullRequestUri,
+            string targetBranch,
+            string sourceBranch,
+            string title = null,
+            string description = null);
 
         Task MergePullRequestAsync(string pullRequestUrl, MergePullRequestParameters parameters);
 
@@ -48,7 +62,7 @@ namespace Microsoft.DotNet.DarcLib
         Task<List<GitFile>> GetFilesForCommitAsync(string repoUri, string commit, string path);
 
         /// <summary>
-        /// Retrieve the contents of a file in a repository.
+        ///     Retrieve the contents of a file in a repository.
         /// </summary>
         /// <param name="filePath">Path of file (relative to repo root)</param>
         /// <param name="repoUri">URI of repo containing the file.</param>
@@ -57,7 +71,7 @@ namespace Microsoft.DotNet.DarcLib
         Task<string> GetFileContentsAsync(string filePath, string repoUri, string branchOrCommit);
 
         /// <summary>
-        /// Get the latest commit sha on a given branch for a repo
+        ///     Get the latest commit sha on a given branch for a repo
         /// </summary>
         /// <param name="repoUri">Repository to get latest commit in.</param>
         /// <param name="branch">Branch to get get latest commit in.</param>
@@ -65,7 +79,7 @@ namespace Microsoft.DotNet.DarcLib
         Task<string> GetLastCommitShaAsync(string repoUri, string branch);
 
         /// <summary>
-        /// Determine whether a file exists at a specified branch or commit.
+        ///     Determine whether a file exists at a specified branch or commit.
         /// </summary>
         /// <param name="repoUri">Repository uri</param>
         /// <param name="filePath">Path of file</param>
@@ -76,7 +90,7 @@ namespace Microsoft.DotNet.DarcLib
         Task<IList<Check>> GetPullRequestChecksAsync(string pullRequestUrl);
 
         /// <summary>
-        /// Get the source branch for the pull request.
+        ///     Get the source branch for the pull request.
         /// </summary>
         /// <param name="pullRequestUrl">url of pull request</param>
         /// <returns>Branch of pull request.</returns>

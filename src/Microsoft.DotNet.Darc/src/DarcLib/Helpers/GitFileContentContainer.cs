@@ -16,12 +16,7 @@ namespace Microsoft.DotNet.DarcLib
 
         public List<GitFile> GetFilesToCommitMap()
         {
-            List<GitFile> gitHubCommitsMap = new List<GitFile>
-            {
-                VersionDetailsXml,
-                VersionProps,
-                GlobalJson
-            };
+            var gitHubCommitsMap = new List<GitFile> {VersionDetailsXml, VersionProps, GlobalJson};
 
             return gitHubCommitsMap;
         }

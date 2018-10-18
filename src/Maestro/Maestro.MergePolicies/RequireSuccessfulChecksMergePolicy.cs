@@ -10,7 +10,7 @@ using Microsoft.DotNet.DarcLib;
 namespace Maestro.MergePolicies
 {
     /// <summary>
-    ///   Merge the PR when it has all the checks specified in the "checks" property and they are all successful.
+    ///     Merge the PR when it has all the checks specified in the "checks" property and they are all successful.
     /// </summary>
     public class RequireSuccessfulChecksMergePolicy : MergePolicy
     {

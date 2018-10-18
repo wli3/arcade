@@ -19,9 +19,6 @@ using Microsoft.ServiceFabric.Actors.Runtime;
 using Moq;
 using ServiceFabricMocks;
 using Xunit;
-using Channel = Maestro.Data.Models.Channel;
-using SubscriptionPolicy = Maestro.Data.Models.SubscriptionPolicy;
-using UpdateFrequency = Maestro.Data.Models.UpdateFrequency;
 
 namespace SubscriptionActorService.Tests
 {
@@ -168,7 +165,9 @@ namespace SubscriptionActorService.Tests
                 PolicyObject = new SubscriptionPolicy
                 {
                     MergePolicies =
-                        mergePolicyDefinition != null ? new List<MergePolicyDefinition> {mergePolicyDefinition} : null,
+                        mergePolicyDefinition != null
+                            ? new List<MergePolicyDefinition> {mergePolicyDefinition}
+                            : null,
                     UpdateFrequency = UpdateFrequency.EveryDay
                 }
             };
@@ -200,10 +199,7 @@ namespace SubscriptionActorService.Tests
                 new BuildChannel {Build = oldBuild, Channel = channel},
                 new BuildChannel {Build = build, Channel = channel}
             };
-            Subscription subscription = CreateSubscription(new MergePolicyDefinition
-            {
-                Name = "AllChecksSuccessful",
-            });
+            Subscription subscription = CreateSubscription(new MergePolicyDefinition {Name = "AllChecksSuccessful"});
             subscription.Channel = channel;
             var repoInstallation =
                 new RepoInstallation {Repository = subscription.TargetRepository, InstallationId = 1};
@@ -241,8 +237,7 @@ namespace SubscriptionActorService.Tests
 
                 if (existingPrHasChecks && existingPrPassedChecks)
                 {
-                    Darc.Setup(d => d.MergePullRequestAsync(existingPr, null))
-                        .Returns(Task.CompletedTask);
+                    Darc.Setup(d => d.MergePullRequestAsync(existingPr, null)).Returns(Task.CompletedTask);
                 }
 
                 Darc.Setup(d => d.CreatePullRequestCommentAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -301,10 +296,8 @@ namespace SubscriptionActorService.Tests
                 new BuildChannel {Build = oldBuild, Channel = channel},
                 new BuildChannel {Build = build, Channel = channel}
             };
-            Subscription subscription = CreateSubscription(mergeOnPassedChecks ? new MergePolicyDefinition
-            {
-                Name = "AllChecksSuccessful"
-            } : null);
+            Subscription subscription = CreateSubscription(
+                mergeOnPassedChecks ? new MergePolicyDefinition {Name = "AllChecksSuccessful"} : null);
             subscription.Channel = channel;
             var repoInstallation =
                 new RepoInstallation {Repository = subscription.TargetRepository, InstallationId = 1};
@@ -319,8 +312,8 @@ namespace SubscriptionActorService.Tests
             var pr = "https://repo.pr/new";
 
 
-            bool shouldMergeExistingPr = prStatus == PrStatus.Open && mergeOnPassedChecks &&
-                                         existingPrHasChecks && existingPrPassedChecks;
+            bool shouldMergeExistingPr = prStatus == PrStatus.Open && mergeOnPassedChecks && existingPrHasChecks &&
+                                         existingPrPassedChecks;
 
             void SetupCreatePr()
             {
@@ -406,8 +399,7 @@ namespace SubscriptionActorService.Tests
 
                 if (shouldMergeExistingPr)
                 {
-                    Darc.Setup(r => r.MergePullRequestAsync(existingPr, null))
-                        .Returns(Task.CompletedTask);
+                    Darc.Setup(r => r.MergePullRequestAsync(existingPr, null)).Returns(Task.CompletedTask);
                 }
             }
 
@@ -459,7 +451,9 @@ namespace SubscriptionActorService.Tests
                         {
                             BuildId = build.Id,
                             Url = prStatus == PrStatus.Open && !shouldMergeExistingPr ? existingPr : pr,
-                            StatusCommentId = prStatus == PrStatus.Open && !shouldMergeExistingPr ? prCommentId : null
+                            StatusCommentId = prStatus == PrStatus.Open && !shouldMergeExistingPr
+                                ? prCommentId
+                                : null
                         }
                     });
 

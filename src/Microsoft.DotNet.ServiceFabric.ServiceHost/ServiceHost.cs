@@ -262,15 +262,13 @@ namespace Microsoft.DotNet.ServiceFabric.ServiceHost
                     $"RunAs=App;AppId={appId};TenantId={tenantId};CertificateThumbprint={certThumbprint};CertificateStoreLocation=LocalMachine";
                 return connectionString;
             }
-            else
-            {
-                return null;
-            }
+
+            return null;
         }
 
         public static KeyVaultClient GetKeyVaultClient(IHostingEnvironment env)
         {
-            var connectionString = GetAzureServiceTokenProviderConnectionString(env);
+            string connectionString = GetAzureServiceTokenProviderConnectionString(env);
             var provider = new AzureServiceTokenProvider(connectionString);
             return new KeyVaultClient(new KeyVaultClient.AuthenticationCallback(provider.KeyVaultTokenCallback));
         }

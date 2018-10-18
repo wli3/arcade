@@ -2,13 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using Microsoft.Extensions.Logging;
+using System;
+using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
-using System;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Microsoft.DotNet.DarcLib
 {
@@ -16,7 +13,7 @@ namespace Microsoft.DotNet.DarcLib
     {
         public static string GetDecodedContent(this IGitRepo gitRepo, string encodedContent)
         {
-            JsonSerializerSettings serializerSettings = new JsonSerializerSettings
+            var serializerSettings = new JsonSerializerSettings
             {
                 ContractResolver = new CamelCasePropertyNamesContractResolver()
             };

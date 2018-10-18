@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -45,8 +46,7 @@ namespace Maestro.Web
                         {
                             op.Responses["default"] = new Response
                             {
-                                Description = "Error",
-                                Schema = ctx.SchemaRegistry.GetOrRegister(typeof(ApiError))
+                                Description = "Error", Schema = ctx.SchemaRegistry.GetOrRegister(typeof(ApiError))
                             };
                             op.OperationId = $"{op.Tags.First()}_{op.OperationId}";
                         });
@@ -82,7 +82,10 @@ namespace Maestro.Web
                         {
                             doc.Security = new List<IDictionary<string, IEnumerable<string>>>
                             {
-                                new Dictionary<string, IEnumerable<string>> {["Bearer"] = Enumerable.Empty<string>()}
+                                new Dictionary<string, IEnumerable<string>>
+                                {
+                                    ["Bearer"] = Enumerable.Empty<string>()
+                                }
                             };
                         });
                 });

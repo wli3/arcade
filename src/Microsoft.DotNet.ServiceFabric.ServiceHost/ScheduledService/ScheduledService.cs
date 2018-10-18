@@ -52,9 +52,7 @@ namespace Microsoft.DotNet.ServiceFabric.ServiceHost
                     .UsingJobData(
                         new JobDataMap
                         {
-                            ["service"] = service,
-                            ["method"] = method,
-                            ["telemetryClient"] = telemetryClient
+                            ["service"] = service, ["method"] = method, ["telemetryClient"] = telemetryClient
                         })
                     .Build();
 

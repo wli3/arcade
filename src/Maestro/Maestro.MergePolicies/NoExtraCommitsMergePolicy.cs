@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace Maestro.MergePolicies
 {
     /// <summary>
-    ///   Merge the PR when it only has commits created by Maestro. This is not yet implemented.
+    ///     Merge the PR when it only has commits created by Maestro. This is not yet implemented.
     /// </summary>
     public class NoExtraCommitsMergePolicy : MergePolicy
     {

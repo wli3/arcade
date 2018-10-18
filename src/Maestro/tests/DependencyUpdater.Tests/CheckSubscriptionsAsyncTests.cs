@@ -55,11 +55,7 @@ namespace DependencyUpdater.Tests
                 TargetRepository = "target.repo",
                 TargetBranch = "target.branch",
                 PolicyObject =
-                    new SubscriptionPolicy
-                    {
-                        MergePolicies = null,
-                        UpdateFrequency = UpdateFrequency.EveryDay
-                    },
+                    new SubscriptionPolicy {MergePolicies = null, UpdateFrequency = UpdateFrequency.EveryDay},
                 LastAppliedBuild = oldBuild
             };
             var repoInstallation = new RepoInstallation {Repository = "target.repo", InstallationId = 1};
@@ -86,8 +82,7 @@ namespace DependencyUpdater.Tests
                 TargetBranch = "target.branch",
                 PolicyObject = new SubscriptionPolicy
                 {
-                    MergePolicies = null,
-                    UpdateFrequency = UpdateFrequency.EveryBuild
+                    MergePolicies = null, UpdateFrequency = UpdateFrequency.EveryBuild
                 }
             };
             await Context.Subscriptions.AddAsync(subscription);
@@ -117,11 +112,7 @@ namespace DependencyUpdater.Tests
                 TargetRepository = "target.repo",
                 TargetBranch = "target.branch",
                 PolicyObject =
-                    new SubscriptionPolicy
-                    {
-                        MergePolicies = null,
-                        UpdateFrequency = UpdateFrequency.EveryDay
-                    },
+                    new SubscriptionPolicy {MergePolicies = null, UpdateFrequency = UpdateFrequency.EveryDay},
                 LastAppliedBuild = build
             };
             await Context.Subscriptions.AddAsync(subscription);

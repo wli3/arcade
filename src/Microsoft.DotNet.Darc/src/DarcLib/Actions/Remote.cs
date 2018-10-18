@@ -2,13 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using Microsoft.DotNet.Maestro.Client;
-using Microsoft.DotNet.Maestro.Client.Models;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.DotNet.Maestro.Client;
+using Microsoft.DotNet.Maestro.Client.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.DotNet.DarcLib
 {
@@ -45,7 +45,9 @@ namespace Microsoft.DotNet.DarcLib
             {
                 if (!string.IsNullOrEmpty(settings.BuildAssetRegistryBaseUri))
                 {
-                    _barClient = ApiFactory.GetAuthenticated(settings.BuildAssetRegistryBaseUri, settings.BuildAssetRegistryPassword);
+                    _barClient = ApiFactory.GetAuthenticated(
+                        settings.BuildAssetRegistryBaseUri,
+                        settings.BuildAssetRegistryPassword);
                 }
                 else
                 {
@@ -55,18 +57,7 @@ namespace Microsoft.DotNet.DarcLib
         }
 
         /// <summary>
-        /// Retrieve the list of channels from the build asset registry.
-        /// </summary>
-        /// <param name="classification">Optional classification to get</param>
-        /// <returns></returns>
-        public async Task<IEnumerable<Channel>> GetChannelsAsync(string classification = null)
-        {
-            CheckForValidBarClient();
-            return await _barClient.Channels.GetAsync(classification);
-        }
-
-        /// <summary>
-        /// Creates a new channel in the Build Asset Registry
+        ///     Creates a new channel in the Build Asset Registry
         /// </summary>
         /// <param name="name">Name of channel</param>
         /// <param name="classification">Classification of the channel</param>
@@ -77,7 +68,10 @@ namespace Microsoft.DotNet.DarcLib
             return await _barClient.Channels.CreateChannelAsync(name, classification);
         }
 
-        public async Task<IEnumerable<Subscription>> GetSubscriptionsAsync(string sourceRepo = null, string targetRepo = null, int? channelId = null)
+        public async Task<IEnumerable<Subscription>> GetSubscriptionsAsync(
+            string sourceRepo = null,
+            string targetRepo = null,
+            int? channelId = null)
         {
             CheckForValidBarClient();
             return await _barClient.Subscriptions.GetAllSubscriptionsAsync(sourceRepo, targetRepo, channelId);
@@ -90,41 +84,45 @@ namespace Microsoft.DotNet.DarcLib
             {
                 throw new ArgumentException($"Subscription id '{subscriptionId}' is not a valid guid.");
             }
+
             return await _barClient.Subscriptions.GetSubscriptionAsync(subscriptionGuid);
         }
 
         /// <summary>
-        /// Create a new subscription
+        ///     Create a new subscription
         /// </summary>
         /// <param name="channelName">Name of source channel</param>
         /// <param name="sourceRepo">URL of source repository</param>
         /// <param name="targetRepo">URL of target repository where updates should be made</param>
         /// <param name="targetBranch">Name of target branch where updates should be made</param>
         /// <param name="updateFrequency">Frequency of updates, can be 'none', 'everyBuild' or 'everyDay'</param>
-        /// <param name="mergePolicies">Dictionary of merge policies. Each merge policy is a name of a policy with an associated blob
-        /// of metadata</param>
+        /// <param name="mergePolicies">
+        ///     Dictionary of merge policies. Each merge policy is a name of a policy with an associated blob
+        ///     of metadata
+        /// </param>
         /// <returns>Newly created subscription, if successful</returns>
-        public async Task<Subscription> CreateSubscriptionAsync(string channelName, string sourceRepo, string targetRepo,
-            string targetBranch, string updateFrequency, List<MergePolicy> mergePolicies)
+        public async Task<Subscription> CreateSubscriptionAsync(
+            string channelName,
+            string sourceRepo,
+            string targetRepo,
+            string targetBranch,
+            string updateFrequency,
+            List<MergePolicy> mergePolicies)
         {
             CheckForValidBarClient();
-            SubscriptionData subscriptionData = new SubscriptionData()
+            var subscriptionData = new SubscriptionData
             {
                 ChannelName = channelName,
                 SourceRepository = sourceRepo,
                 TargetRepository = targetRepo,
                 TargetBranch = targetBranch,
-                Policy = new SubscriptionPolicy()
-                {
-                    UpdateFrequency = updateFrequency,
-                    MergePolicies = mergePolicies
-                }
+                Policy = new SubscriptionPolicy {UpdateFrequency = updateFrequency, MergePolicies = mergePolicies}
             };
             return await _barClient.Subscriptions.CreateAsync(subscriptionData);
         }
 
         /// <summary>
-        /// Delete a subscription by id
+        ///     Delete a subscription by id
         /// </summary>
         /// <param name="subscriptionId">Id of subscription to delete</param>
         /// <returns>Information on deleted subscriptio</returns>
@@ -135,11 +133,12 @@ namespace Microsoft.DotNet.DarcLib
             {
                 throw new ArgumentException($"Subscription id '{subscriptionId}' is not a valid guid.");
             }
+
             return await _barClient.Subscriptions.DeleteSubscriptionAsync(subscriptionGuid);
         }
 
         /// <summary>
-        /// Create a pull request to update dependencies.
+        ///     Create a pull request to update dependencies.
         /// </summary>
         /// <param name="targetRepositoryUri">Repository that will receive the pull request.</param>
         /// <param name="targetBranch">Target branch for the pull request.</param>
@@ -150,20 +149,27 @@ namespace Microsoft.DotNet.DarcLib
         /// <param name="pullRequestTitle">Title of the pull request.</param>
         /// <param name="pullRequestDescription">Description of the pull request.</param>
         /// <returns></returns>
-        public async Task<string> CreatePullRequestAsync(string targetRepositoryUri,
-                                                         string targetBranch,
-                                                         string buildCommit,
-                                                         string buildRepositoryUri,
-                                                         IEnumerable<Microsoft.DotNet.DarcLib.AssetData> buildAssets,
-                                                         string sourceBranch = null,
-                                                         string pullRequestTitle = null,
-                                                         string pullRequestDescription = null)
+        public async Task<string> CreatePullRequestAsync(
+            string targetRepositoryUri,
+            string targetBranch,
+            string buildCommit,
+            string buildRepositoryUri,
+            IEnumerable<AssetData> buildAssets,
+            string sourceBranch = null,
+            string pullRequestTitle = null,
+            string pullRequestDescription = null)
         {
             CheckForValidGitClient();
-            _logger.LogInformation($"Create pull request to update dependencies in repo '{targetRepositoryUri}' and branch '{targetBranch}'...");
+            _logger.LogInformation(
+                $"Create pull request to update dependencies in repo '{targetRepositoryUri}' and branch '{targetBranch}'...");
 
             // Get the items to update based on the target branch.
-            IEnumerable<DependencyDetail> itemsToUpdate = await GetRequiredUpdatesAsync(targetRepositoryUri, targetBranch, buildCommit, buildRepositoryUri, buildAssets);
+            IEnumerable<DependencyDetail> itemsToUpdate = await GetRequiredUpdatesAsync(
+                targetRepositoryUri,
+                targetBranch,
+                buildCommit,
+                buildRepositoryUri,
+                buildAssets);
 
             string linkToPr = null;
 
@@ -179,9 +185,15 @@ namespace Microsoft.DotNet.DarcLib
                 // done based on the information in that branch, not the target branch.
                 await CommitFilesForPullRequestAsync(targetRepositoryUri, targetBranch, buildCommit, itemsToUpdate);
 
-                linkToPr = await _gitClient.CreatePullRequestAsync(targetRepositoryUri, targetBranch, sourceBranch, pullRequestTitle, pullRequestDescription);
+                linkToPr = await _gitClient.CreatePullRequestAsync(
+                    targetRepositoryUri,
+                    targetBranch,
+                    sourceBranch,
+                    pullRequestTitle,
+                    pullRequestDescription);
 
-                _logger.LogInformation($"Updating dependencies in repo '{targetRepositoryUri}' and branch '{targetBranch}' succeeded! PR link is: {linkToPr}");
+                _logger.LogInformation(
+                    $"Updating dependencies in repo '{targetRepositoryUri}' and branch '{targetBranch}' succeeded! PR link is: {linkToPr}");
 
                 return linkToPr;
             }
@@ -199,7 +211,12 @@ namespace Microsoft.DotNet.DarcLib
             return checks;
         }
 
-        public async Task<IEnumerable<int>> SearchPullRequestsAsync(string repoUri, string pullRequestBranch, PrStatus status, string keyword = null, string author = null)
+        public async Task<IEnumerable<int>> SearchPullRequestsAsync(
+            string repoUri,
+            string pullRequestBranch,
+            PrStatus status,
+            string keyword = null,
+            string author = null)
         {
             CheckForValidGitClient();
             return await _gitClient.SearchPullRequestsAsync(repoUri, pullRequestBranch, status, keyword, author);
@@ -236,7 +253,7 @@ namespace Microsoft.DotNet.DarcLib
         }
 
         /// <summary>
-        /// Updates an existing pull request with new assets.
+        ///     Updates an existing pull request with new assets.
         /// </summary>
         /// <param name="pullRequestUrl">Url of existing PR.</param>
         /// <param name="buildCommit">Commit of new build</param>
@@ -246,13 +263,14 @@ namespace Microsoft.DotNet.DarcLib
         /// <param name="pullRequestTitle">Title to update pull request with.</param>
         /// <param name="pullRequestDescription">Description to update the pull request with</param>
         /// <returns></returns>
-        public async Task<string> UpdatePullRequestAsync(string pullRequestUrl,
-                                                         string buildCommit,
-                                                         string buildRepositoryUri,
-                                                         string targetBranch,
-                                                         IEnumerable<Microsoft.DotNet.DarcLib.AssetData> assetsToUpdate,
-                                                         string pullRequestTitle = null,
-                                                         string pullRequestDescription = null)
+        public async Task<string> UpdatePullRequestAsync(
+            string pullRequestUrl,
+            string buildCommit,
+            string buildRepositoryUri,
+            string targetBranch,
+            IEnumerable<AssetData> assetsToUpdate,
+            string pullRequestTitle = null,
+            string pullRequestDescription = null)
         {
             CheckForValidGitClient();
             _logger.LogInformation($"Updating pull request '{pullRequestUrl}'...");
@@ -261,17 +279,28 @@ namespace Microsoft.DotNet.DarcLib
 
             string repoUri = await _gitClient.GetPullRequestRepo(pullRequestUrl);
             string pullRequestSourceBranch = await _gitClient.GetPullRequestSourceBranch(pullRequestUrl);
-            
+
             // TODO: Update the source branch here?
 
             // When we update, do so based on the pull request source branch, as it may have drifted from target branch.
-            IEnumerable<DependencyDetail> itemsToUpdate = await GetRequiredUpdatesAsync(repoUri, pullRequestSourceBranch, buildCommit, buildRepositoryUri, assetsToUpdate);
+            IEnumerable<DependencyDetail> itemsToUpdate = await GetRequiredUpdatesAsync(
+                repoUri,
+                pullRequestSourceBranch,
+                buildCommit,
+                buildRepositoryUri,
+                assetsToUpdate);
 
             await CommitFilesForPullRequestAsync(repoUri, targetBranch, buildCommit, itemsToUpdate);
 
-            linkToPr = await _gitClient.UpdatePullRequestAsync(pullRequestUrl, targetBranch, pullRequestSourceBranch, pullRequestTitle, pullRequestDescription);
+            linkToPr = await _gitClient.UpdatePullRequestAsync(
+                pullRequestUrl,
+                targetBranch,
+                pullRequestSourceBranch,
+                pullRequestTitle,
+                pullRequestDescription);
 
-            _logger.LogInformation($"Updating dependencies in repo '{repoUri}' and branch '{targetBranch}' succeeded! PR link is: {linkToPr}");
+            _logger.LogInformation(
+                $"Updating dependencies in repo '{repoUri}' and branch '{targetBranch}' succeeded! PR link is: {linkToPr}");
 
             return linkToPr;
         }
@@ -287,7 +316,18 @@ namespace Microsoft.DotNet.DarcLib
         }
 
         /// <summary>
-        /// Called prior to operations requiring the BAR.  Throws if a bar client isn't available.
+        ///     Retrieve the list of channels from the build asset registry.
+        /// </summary>
+        /// <param name="classification">Optional classification to get</param>
+        /// <returns></returns>
+        public async Task<IEnumerable<Channel>> GetChannelsAsync(string classification = null)
+        {
+            CheckForValidBarClient();
+            return await _barClient.Channels.GetAsync(classification);
+        }
+
+        /// <summary>
+        ///     Called prior to operations requiring the BAR.  Throws if a bar client isn't available.
         /// </summary>
         private void CheckForValidBarClient()
         {
@@ -298,13 +338,13 @@ namespace Microsoft.DotNet.DarcLib
         }
 
         /// <summary>
-        /// Called prior to operations requiring the BAR.  Throws if a git client isn't available;
+        ///     Called prior to operations requiring the BAR.  Throws if a git client isn't available;
         /// </summary>
         private void CheckForValidGitClient()
         {
             if (_gitClient == null)
             {
-                throw new ArgumentException($"Must supply a valid GitHub/Azure DevOps PAT");
+                throw new ArgumentException("Must supply a valid GitHub/Azure DevOps PAT");
             }
         }
 
@@ -326,8 +366,8 @@ namespace Microsoft.DotNet.DarcLib
         }
 
         /// <summary>
-        /// Determine the dependencies in the target repository that need updates based on the
-        /// assets produced in a build.
+        ///     Determine the dependencies in the target repository that need updates based on the
+        ///     assets produced in a build.
         /// </summary>
         /// <param name="repoUri">Repository containing the targeted for update</param>
         /// <param name="branch">Branch targetd for update</param>
@@ -335,23 +375,27 @@ namespace Microsoft.DotNet.DarcLib
         /// <param name="buildRepositoryUri">Uri of the repo that produced the assets that may need update.</param>
         /// <param name="buildAssets">Assets that may need update.</param>
         /// <returns>List of updated dependency elements.</returns>
-        private async Task<IEnumerable<DependencyDetail>> GetRequiredUpdatesAsync(string repoUri,
-                                                                                  string branch,
-                                                                                  string buildCommit,
-                                                                                  string buildRepositoryUri,
-                                                                                  IEnumerable<Microsoft.DotNet.DarcLib.AssetData> buildAssets)
+        private async Task<IEnumerable<DependencyDetail>> GetRequiredUpdatesAsync(
+            string repoUri,
+            string branch,
+            string buildCommit,
+            string buildRepositoryUri,
+            IEnumerable<AssetData> buildAssets)
         {
             CheckForValidGitClient();
             _logger.LogInformation($"Check if repo '{repoUri}' and branch '{branch}' needs updates...");
 
-            List<DependencyDetail> toUpdate = new List<DependencyDetail>();
-            IEnumerable<DependencyDetail> dependencyDetails = await _fileManager.ParseVersionDetailsXmlAsync(repoUri, branch);
+            var toUpdate = new List<DependencyDetail>();
+            IEnumerable<DependencyDetail> dependencyDetails =
+                await _fileManager.ParseVersionDetailsXmlAsync(repoUri, branch);
 
             foreach (DependencyDetail dependency in dependencyDetails)
             {
                 // Compare asset name case insensitively, but dependency update below will reset the name to the 
                 // new asset name, to account for cases where the asset name casing might be corrected.
-                Microsoft.DotNet.DarcLib.AssetData asset = buildAssets.Where(a => a.Name.Equals(dependency.Name, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+                AssetData asset = buildAssets
+                    .Where(a => a.Name.Equals(dependency.Name, StringComparison.OrdinalIgnoreCase))
+                    .FirstOrDefault();
 
                 if (asset == null)
                 {
@@ -367,7 +411,8 @@ namespace Microsoft.DotNet.DarcLib
                 toUpdate.Add(dependency);
             }
 
-            _logger.LogInformation($"Getting dependencies which need to be updated in repo '{repoUri}' and branch '{branch}' succeeded!");
+            _logger.LogInformation(
+                $"Getting dependencies which need to be updated in repo '{repoUri}' and branch '{branch}' succeeded!");
 
             return toUpdate;
         }
@@ -375,37 +420,39 @@ namespace Microsoft.DotNet.DarcLib
         private async Task<List<GitFile>> GetScriptFilesAsync(string repoUri, string commit)
         {
             CheckForValidGitClient();
-            _logger.LogInformation($"Generating commits for script files");
+            _logger.LogInformation("Generating commits for script files");
 
             List<GitFile> files = await _gitClient.GetFilesForCommitAsync(repoUri, commit, "eng/common");
 
-            _logger.LogInformation($"Generating commits for script files succeeded!");
+            _logger.LogInformation("Generating commits for script files succeeded!");
 
             return files;
         }
 
         /// <summary>
-        /// Commit updates of files to a branch.
+        ///     Commit updates of files to a branch.
         /// </summary>
         /// <param name="repoUri">Repository containing branch to update</param>
         /// <param name="branch">Branch to update</param>
         /// <param name="buildCommit">Commit of the build containing the new assets.</param>
         /// <param name="itemsToUpdate">Items that need updating.</param>
         /// <returns></returns>
-        private async Task CommitFilesForPullRequestAsync(string repoUri,
-                                                          string branch,
-                                                          string buildCommit,
-                                                          IEnumerable<DependencyDetail> itemsToUpdate)
+        private async Task CommitFilesForPullRequestAsync(
+            string repoUri,
+            string branch,
+            string buildCommit,
+            IEnumerable<DependencyDetail> itemsToUpdate)
         {
             CheckForValidGitClient();
-            GitFileContentContainer fileContainer = await _fileManager.UpdateDependencyFiles(itemsToUpdate, repoUri, branch);
+            GitFileContentContainer fileContainer =
+                await _fileManager.UpdateDependencyFiles(itemsToUpdate, repoUri, branch);
             List<GitFile> filesToCommit = fileContainer.GetFilesToCommitMap();
 
             // If there is an arcade asset that we need to update we try to update the script files as well
-            DependencyDetail arcadeItem = itemsToUpdate.Where(i => i.Name.ToLower().Contains("arcade")).FirstOrDefault();
+            DependencyDetail arcadeItem =
+                itemsToUpdate.Where(i => i.Name.ToLower().Contains("arcade")).FirstOrDefault();
 
-            if (arcadeItem != null
-                && repoUri != arcadeItem.RepoUri)
+            if (arcadeItem != null && repoUri != arcadeItem.RepoUri)
             {
                 List<GitFile> engCommonsFiles = await GetScriptFilesAsync(arcadeItem.RepoUri, buildCommit);
                 filesToCommit.AddRange(engCommonsFiles);

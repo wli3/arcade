@@ -48,10 +48,7 @@ namespace Microsoft.DotNet.ServiceFabric.ServiceHost
 
             var source = new KeyVaultMappedJsonConfigurationSource(clientFactory, vaultUri)
             {
-                FileProvider = provider,
-                Path = path,
-                Optional = optional,
-                ReloadOnChange = reloadOnChange
+                FileProvider = provider, Path = path, Optional = optional, ReloadOnChange = reloadOnChange
             };
             builder.Add(source);
             return builder;

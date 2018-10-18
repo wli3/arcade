@@ -19,8 +19,6 @@ using Microsoft.ServiceFabric.Actors;
 using Microsoft.ServiceFabric.Actors.Runtime;
 using Microsoft.ServiceFabric.Data;
 using Newtonsoft.Json;
-using MergePolicy = Maestro.MergePolicies.MergePolicy;
-using SubscriptionPolicy = Maestro.Data.Models.SubscriptionPolicy;
 
 namespace SubscriptionActorService
 {
@@ -118,29 +116,6 @@ namespace SubscriptionActorService
             return RunAction(action, DeserializeArguments(arguments));
         }
 
-        public Task<string> RunAction(string action, params object[] arguments)
-        {
-            Func<Task<string>> run;
-            string messageFormat;
-            switch (action)
-            {
-                case nameof(UpdateAsync):
-                    var buildId = Convert.ToInt32(arguments[0]);
-                    run = () => UpdateAsyncImpl(buildId);
-                    messageFormat = "Updating subscription for build '{buildId}'";
-                    break;
-                case nameof(CheckMergePolicyAsync):
-                    var prUrl = (string) arguments[0];
-                    run = () => CheckMergePolicyAsyncImpl(prUrl);
-                    messageFormat = "Checking merge policy for pr '{url}'";
-                    break;
-                default:
-                    throw new ArgumentException($"The action '{action}' does not exist.", nameof(action));
-            }
-
-            return RunAction(run, action, messageFormat, arguments);
-        }
-
         public async Task SubscriptionDeletedAsync(string user)
         {
             ConditionalValue<InProgressPullRequest> maybePr =
@@ -179,6 +154,29 @@ This pull request will no longer be tracked by maestro.");
         public Task<string> CheckMergePolicyAsync(string prUrl)
         {
             return RunAction(nameof(CheckMergePolicyAsync), prUrl);
+        }
+
+        public Task<string> RunAction(string action, params object[] arguments)
+        {
+            Func<Task<string>> run;
+            string messageFormat;
+            switch (action)
+            {
+                case nameof(UpdateAsync):
+                    int buildId = Convert.ToInt32(arguments[0]);
+                    run = () => UpdateAsyncImpl(buildId);
+                    messageFormat = "Updating subscription for build '{buildId}'";
+                    break;
+                case nameof(CheckMergePolicyAsync):
+                    var prUrl = (string) arguments[0];
+                    run = () => CheckMergePolicyAsyncImpl(prUrl);
+                    messageFormat = "Checking merge policy for pr '{url}'";
+                    break;
+                default:
+                    throw new ArgumentException($"The action '{action}' does not exist.", nameof(action));
+            }
+
+            return RunAction(run, action, messageFormat, arguments);
         }
 
         private async Task<string> RunAction(
@@ -237,7 +235,14 @@ This pull request will no longer be tracked by maestro.");
             if (maybePr.HasValue)
             {
                 pr = maybePr.Value;
-                await darc.UpdatePullRequestAsync(pr.Url, build.Commit, build.Repository, targetBranch, assets, title, description);
+                await darc.UpdatePullRequestAsync(
+                    pr.Url,
+                    build.Commit,
+                    build.Repository,
+                    targetBranch,
+                    assets,
+                    title,
+                    description);
             }
             else
             {
@@ -252,7 +257,7 @@ This pull request will no longer be tracked by maestro.");
 
                 if (string.IsNullOrEmpty(prUrl))
                 {
-                    return $"No Pull request created. Darc Reports no dependencies need to be updated.";
+                    return "No Pull request created. Darc Reports no dependencies need to be updated.";
                 }
 
                 pr = new InProgressPullRequest {Url = prUrl};
