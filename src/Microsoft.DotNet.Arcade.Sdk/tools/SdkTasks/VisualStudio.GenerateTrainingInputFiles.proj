@@ -1,0 +1,95 @@
+<!-- Licensed to the .NET Foundation under one or more agreements. The .NET Foundation licenses this file to you under the MIT license. See the LICENSE file in the project root for more information. -->
+<Project Sdk="Microsoft.NET.Sdk" DefaultTargets="Execute">
+  <!--
+    Parameters:
+      VisualStudioDropName      Product drop name, e.g. 'Products/$(System.TeamProject)/$(Build.Repository.Name)/$(Build.SourceBranchName)/$(Build.BuildNumber)'
+      BootstrapperInfoPath      Path to the BootstrapperInfo.json
+    
+    This project is supposed to be executed from build definition after the repository is built and VS bootstrapper produced.
+    Dependencies are expected to have been already restored as part of toolset restore (Tools.proj).
+    Ideally this would be done in AfterSigning.proj but we can't currently build VS bootstrapper from an msbuild build task 
+    as it is only available as a DevOps Pipeline task.
+  -->
+
+  <PropertyGroup>
+    <_VisualStudioBuildTasksAssembly>$(NuGetPackageRoot)microsoft.dotnet.build.tasks.visualstudio\$(MicrosoftDotNetBuildTasksVisualStudioVersion)\tools\net472\Microsoft.DotNet.Build.Tasks.VisualStudio.dll</_VisualStudioBuildTasksAssembly>
+  </PropertyGroup>
+
+  <UsingTask AssemblyFile="$(_VisualStudioBuildTasksAssembly)" TaskName="Microsoft.DotNet.Build.Tasks.VisualStudio.GetRunSettingsSessionConfiguration"/>
+
+  <Targets Name="Execute">
+    <GetRunSettingsSessionConfiguration ConfigurationFile="$(RepositoryEngineeringDir)config\OptProf.json"
+                                        ProductDropName="$(VisualStudioDropName)"
+                                        BootstrapperInfoPath="$(BootstrapperInfoPath)">
+      <Output TaskParameter="SessionConfiguration" PropertyName="SessionConfiguration"/>
+    </GetRunSettingsSessionConfiguration>
+
+    <PropertyGroup>
+      <RunSettings>
+        <RunConfiguration>
+          <ResultsDirectory>C:\Test\Results</ResultsDirectory>
+          <TargetPlatform>X86</TargetPlatform>
+          <MaxCpuCount>1</MaxCpuCount>
+          <BatchSize>10</BatchSize>
+          <TestSessionTimeout>21600000</TestSessionTimeout>
+          <DesignMode>False</DesignMode>
+          <InIsolation>False</InIsolation>
+          <CollectSourceInformation>False</CollectSourceInformation>
+          <DisableAppDomain>False</DisableAppDomain>
+          <DisableParallelization>False</DisableParallelization>
+          <TargetFrameworkVersion>.NETFramework,Version=v4.0</TargetFrameworkVersion>
+          <ExecutionThreadApartmentState>STA</ExecutionThreadApartmentState>
+          <TestAdaptersPaths>%SystemDrive%\Test</TestAdaptersPaths>
+          <TreatTestAdapterErrorsAsWarnings>False</TreatTestAdapterErrorsAsWarnings>
+        </RunConfiguration>
+        $(SessionConfiguration)
+        <DataCollectionRunSettings>
+          <DataCollectors>
+            <DataCollector uri="datacollector://microsoft/DevDiv/TestExtensions/ProcDumpCollector/v1" friendlyName="ProcDump Collector" enabled="True">
+              <Configuration>
+                <RootDumpDirectory>C:\Test\Dumps</RootDumpDirectory>
+                <Deployment PackageName = "Microsoft.DevDiv.TestExtensions.ProcDumpCollector" />
+              </Configuration>
+            </DataCollector>
+            <DataCollector uri="datacollector://microsoft/DevDiv/TestExtensions/LingeringProcessCollector/v1" friendlyName="Lingering Process Collector" enabled="True">
+              <Configuration>
+                <KillLingeringProcesses>true</KillLingeringProcesses>
+                <LoggingBehavior>Warning</LoggingBehavior>
+                <Deployment PackageName = "Microsoft.DevDiv.TestExtensions.LingeringProcessCollector" />
+              </Configuration>
+            </DataCollector>
+            <DataCollector uri="datacollector://microsoft/DevDiv/VideoRecorder/2.0" friendlyName="Screen and Voice Recorder" enabled="True">
+              <Configuration>
+                <Deployment PackageName = "Microsoft.DevDiv.Validation.MediaRecorder" />
+              </Configuration>
+            </DataCollector>
+          </DataCollectors>
+        </DataCollectionRunSettings>
+        <InProcDataCollectionRunSettings>
+          <InProcDataCollectors>
+            <InProcDataCollector uri="datacollector://microsoft/DevDiv/TestExtensions/OptProfDataCollector/v2" assemblyQualifiedName="Microsoft.DevDiv.TestExtensions.OptProfDataCollector, Microsoft.DevDiv.TestExtensions.OptProfDataCollector, Version=2.0.0.0, Culture=neutral, PublicKeyToken=null" friendlyName="OptProf Data Collector" enabled="True" codebase="C:\Test\Extensions\Microsoft.DevDiv.TestExtensions.OptProfDataCollector\lib\net461\Microsoft.DevDiv.TestExtensions.OptProfDataCollector.dll">
+              <Configuration>
+                <WorkingDirectory>C:\OptProf</WorkingDirectory>
+                <ProfilesDirectory>C:\Profiles</ProfilesDirectory>
+                <Deployment PackageName="Microsoft.DevDiv.TestExtensions.OptProfDataCollector" />
+              </Configuration>
+            </InProcDataCollector>
+          </InProcDataCollectors>
+        </InProcDataCollectionRunSettings>
+        <TestRunParameters />
+        <LoggerRunSettings>
+          <Loggers />
+        </LoggerRunSettings>
+      </RunSettings>
+    </PropertyGroup>
+
+    <WriteLinesToFile File="Training.runsettings"
+                      Lines='&lt;?xml version="1.0" encoding="utf-8"?&gt;;&lt;RunSettings&gt;;&lt;/RunSettings&gt;'
+                      Encoding="UTF-8"
+                      Overwrite="true"/>
+
+    <XmlPoke XmlInputPath="Training.runsettings"
+             Query="/RunSettings"
+             Value="$(RunSettings)" />
+  </Targets>
+</Project>

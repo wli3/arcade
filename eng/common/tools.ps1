@@ -362,6 +362,11 @@ function GetDefaultMSBuildEngine() {
   ExitWithExitCode 1
 }
 
+# Returns a full path to an Arcade SDK task project file.
+function GetSdkTaskProjectFile([string]$taskName) {
+  return Join-Path (Split-Path (InitializeToolset) -Parent) "SdkTasks\$taskName.proj"
+}
+
 function GetNuGetPackageCachePath() {
   if ($env:NUGET_PACKAGES -eq $null) {
     # Use local cache on CI to ensure deterministic build,
