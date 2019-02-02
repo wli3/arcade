@@ -11,7 +11,7 @@
   <UsingTask AssemblyFile="$(_VisualStudioBuildTasksAssembly)" 
              TaskName="Microsoft.DotNet.Build.Tasks.VisualStudio.GenerateTrainingInputFiles"/>
 
-  <Target Name="_BuildTrainingInputs" BeforeTargets="Build">
+  <Target Name="_BuildTrainingInputs" AfterTargets="Build">
     <GenerateTrainingInputFiles ConfigurationFile="$(RepositoryEngineeringDir)config\OptProf.json" 
                                 InsertionDirectory="$(VisualStudioSetupInsertionPath)"
                                 OutputDirectory="$(ArtifactsDir)OptProf\$(Configuration)\Data" />
