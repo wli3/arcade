@@ -8,8 +8,7 @@
     <_VisualStudioBuildTasksAssembly>$(NuGetPackageRoot)microsoft.dotnet.build.tasks.visualstudio\$(MicrosoftDotNetBuildTasksVisualStudioVersion)\tools\net472\Microsoft.DotNet.Build.Tasks.VisualStudio.dll</_VisualStudioBuildTasksAssembly>
   </PropertyGroup>
 
-  <UsingTask AssemblyFile="$(_VisualStudioBuildTasksAssembly)" 
-             TaskName="Microsoft.DotNet.Build.Tasks.VisualStudio.GenerateTrainingInputFiles"/>
+  <UsingTask AssemblyFile="$(_VisualStudioBuildTasksAssembly)" TaskName="Microsoft.DotNet.Build.Tasks.VisualStudio.GenerateTrainingInputFiles"/>
 
   <Target Name="_BuildTrainingInputs" AfterTargets="Build">
     <GenerateTrainingInputFiles ConfigurationFile="$(RepositoryEngineeringDir)config\OptProf.json" 

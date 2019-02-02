@@ -31,12 +31,14 @@
 
     <PropertyGroup>
       <_DropToolPath>$(NuGetPackageRoot)drop.app\$(DropAppVersion)\lib\net45\drop.exe</_DropToolPath>
-      <_DropToolExists Condition="Exists('$(_DropToolPath)')">true</_DropToolExists>
       <_DropServiceUrl>https://devdiv.artifacts.visualstudio.com</_DropServiceUrl>
       <_DropNamePrefix>OptimizationData/$(RepositoryName)/$(RepositoryBranchName)</_DropNamePrefix>
       <_PatAuthArg Condition="'$(VisualStudioDropAccessToken)' != ''">--patAuth "$(VisualStudioDropAccessToken)"</_PatAuthArg>
       <_DropsJsonPath>$(ArtifactsLogDir)OptimizationDataDrops.json</_DropsJsonPath>
       <_DropsLogPath>$(ArtifactsLogDir)OptimizationDataAcquisition.log</_DropsLogPath>
+
+      <_DropToolExists>false</_DropToolExists>
+      <_DropToolExists Condition="Exists('$(_DropToolPath)')">true</_DropToolExists>
     </PropertyGroup>
 
     <!--
@@ -45,7 +47,7 @@
       cibuild.cmd after manually restoring internal tools project.
     -->
     <Error Text='Internal tool not found: "$(_DropToolPath)". Run restore on "$(RepositoryEngineeringDir)common\internal\VisualStudioToolset.csproj".'
-           Condition="'$(OfficialBuild)' == 'true' and '$(_DropToolExists)' == 'true'"/>
+           Condition="'$(OfficialBuild)' == 'true' and $(_DropToolExists)"/>
   </Target>
 
   <Target Name="_DownloadVisualStudioOptimizationDataOpt" Condition="$(_DropToolExists)">
