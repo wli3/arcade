@@ -14,14 +14,17 @@ namespace Microsoft.DotNet.Build.Tasks.VisualStudio
     {
         private const string TechnologyName = "IBC";
         private const string VSInstallationRootVar = "%VisualStudio.InstallationUnderTest.Path%";
+        private const string DefaultNgenApplication = VSInstallationRootVar + "\\Common7\\IDE\\vsn.exe";
 
         public readonly string RelativeInstallationPath;
         public readonly string InstrumentationArguments;
 
-        public IbcEntry(string relativeInstallationPath, string instrumentationArguments)
+        public IbcEntry(string relativeInstallationPath, string ngenApplicationPath)
         {
+            string commandLineArg(string name, string value) => $"/{name}:\"{value}\"";
+
             RelativeInstallationPath = relativeInstallationPath;
-            InstrumentationArguments = instrumentationArguments;
+            InstrumentationArguments = commandLineArg("ExeConfig", ngenApplicationPath);
         }
 
         public JObject ToJson()
@@ -30,20 +33,19 @@ namespace Microsoft.DotNet.Build.Tasks.VisualStudio
                 new JProperty("RelativeInstallationPath", RelativeInstallationPath),
                 new JProperty("InstrumentationArguments", InstrumentationArguments));
 
+
         public static IEnumerable<IbcEntry> GetEntriesFromAssembly(AssemblyOptProfTraining assembly)
         {
             foreach (var args in assembly.InstrumentationArguments)
             {
                 yield return new IbcEntry(
                     relativeInstallationPath: args.RelativeInstallationFolder.Replace("/", "\\") + $"\\{assembly.Assembly}",
-                    instrumentationArguments: $"/ExeConfig:\"{VSInstallationRootVar}\\{args.InstrumentationExecutable.Replace("/", "\\")}");
+                    ngenApplicationPath: Path.Combine(VSInstallationRootVar, args.InstrumentationExecutable.Replace("/", "\\")));
             }
         }
 
         public static IEnumerable<IbcEntry> GetEntriesFromVsixJsonManifest(JObject json)
         {
-            const string DefaultInstrumentationArgs = "/ExeConfig:\"" + VSInstallationRootVar + "\\Common7\\IDE\\vsn.exe\"";
-
             bool isNgened(JToken file)
                 => file["ngen"] != null || file["ngenPriority"] != null || file["ngenArchitecture"] != null || file["ngenApplication"] != null;
 
@@ -54,14 +56,17 @@ namespace Microsoft.DotNet.Build.Tasks.VisualStudio
                        StringComparer.OrdinalIgnoreCase.Equals(ext, ".exe");
             }
 
+            string replacePrefix(string path, string prefix, string replacement)
+                => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? replacement + path.Substring(prefix.Length) : path;
+
             if (json["extensionDir"] != null)
             {
-                var extensionDir = ((string)json["extensionDir"]).Replace("[installdir]\\", string.Empty);
+                var extensionDir = replacePrefix((string)json["extensionDir"], "[installdir]\\", "");
                 return from file in (JArray)json["files"]
                        let fileName = (string)file["fileName"]
                        where isNgened(file) && isPEFile(fileName)
                        let filePath = $"{extensionDir}\\{fileName.Replace("/", string.Empty)}"
-                       select new IbcEntry(filePath, DefaultInstrumentationArgs);
+                       select new IbcEntry(filePath, DefaultNgenApplication);
             }
             else
             {
@@ -70,8 +75,7 @@ namespace Microsoft.DotNet.Build.Tasks.VisualStudio
                        let ngenApplication = (string)file["ngenApplication"]
                        where isNgened(file) && isPEFile(fileName)
                        let filePath = fileName.Replace("/Contents/", string.Empty).Replace("/", "\\")
-                       let args = (ngenApplication != null) ? $"/ExeConfig:\"{VSInstallationRootVar}{ngenApplication.Replace("[installDir]", string.Empty)}\"" : DefaultInstrumentationArgs
-                       select new IbcEntry(filePath, args);
+                       select new IbcEntry(filePath, (ngenApplication != null) ? replacePrefix(ngenApplication, "[installdir]", VSInstallationRootVar) : DefaultNgenApplication);
             }
         }
     }

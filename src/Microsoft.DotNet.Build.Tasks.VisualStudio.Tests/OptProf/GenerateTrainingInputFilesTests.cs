@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
 using System.IO.Compression;
@@ -129,23 +130,28 @@ namespace Microsoft.DotNet.Build.Tasks.VisualStudio.UnitTests
                 Path.Combine(outputDir, @"DDRIT.RPS.CSharp\Configurations\DDRIT.RPS.CSharp.CSharpTest.EditingAndDesigner\xyzMicrosoft.CodeAnalysis.CSharp.0.IBC.json")
             }, entries);
 
+
             var json = File.ReadAllText(Path.Combine(outputDir, @"DDRIT.RPS.CSharp\Configurations\DDRIT.RPS.CSharp.CSharpTest.BuildAndDebugging\System.Collections.Immutable.0.IBC.json"));
             Assert.Equal(
 @"{
   ""Technology"": ""IBC"",
   ""RelativeInstallationPath"": ""Common7\\IDE\\PrivateAssemblies\\System.Collections.Immutable.dll"",
-  ""InstrumentationArguments"": ""/ExeConfig:\""%VisualStudio.InstallationUnderTest.Path%\\Common7\\IDE\\vsn.exe""
+  ""InstrumentationArguments"": ""/ExeConfig:\""%VisualStudio.InstallationUnderTest.Path%\\Common7\\IDE\\vsn.exe\""""
 }
 ", json);
+
+            JObject.Parse(json);
 
             json = File.ReadAllText(Path.Combine(outputDir, @"DDRIT.RPS.CSharp\Configurations\DDRIT.RPS.CSharp.CSharpTest.BuildAndDebugging\System.Collections.Immutable.1.IBC.json"));
             Assert.Equal(
 @"{
   ""Technology"": ""IBC"",
   ""RelativeInstallationPath"": ""MSBuild\\15.0\\Bin\\Roslyn\\System.Collections.Immutable.dll"",
-  ""InstrumentationArguments"": ""/ExeConfig:\""%VisualStudio.InstallationUnderTest.Path%\\Common7\\IDE\\zzz.exe""
+  ""InstrumentationArguments"": ""/ExeConfig:\""%VisualStudio.InstallationUnderTest.Path%\\Common7\\IDE\\zzz.exe\""""
 }
 ", json);
+
+            JObject.Parse(json);
 
             json = File.ReadAllText(Path.Combine(outputDir, @"DDRIT.RPS.CSharp\Configurations\DDRIT.RPS.CSharp.CSharpTest.EditingAndDesigner\xyzMicrosoft.CodeAnalysis.CSharp.0.IBC.json"));
             Assert.Equal(
@@ -155,6 +161,8 @@ namespace Microsoft.DotNet.Build.Tasks.VisualStudio.UnitTests
   ""InstrumentationArguments"": ""/ExeConfig:\""%VisualStudio.InstallationUnderTest.Path%\\Common7\\IDE\\vsn.exe\""""
 }
 ", json);
+            JObject.Parse(json);
+
             Assert.True(result);
             Directory.Delete(dir, recursive: true);
         }
