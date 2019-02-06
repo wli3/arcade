@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\Microsoft.DotNet.Helix\Client\CSharp\Microsoft.DotNet.Helix.Client.csproj" />
+    <ProjectReference Include="..\src\Microsoft.DotNet.Helix\JobSender\Microsoft.DotNet.Helix.JobSender.csproj" />
+    <ProjectReference Include="..\src\Microsoft.DotNet.Helix\Sdk\Microsoft.DotNet.Helix.Sdk.csproj" />
+  </ItemGroup>
+
+</Project>

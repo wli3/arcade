@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.271
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.28525.7
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.DotNet.Build.Tasks.Feed", "src\Microsoft.DotNet.Build.Tasks.Feed\Microsoft.DotNet.Build.Tasks.Feed.csproj", "{941D335B-AA65-4089-9502-F306B108D182}"
 EndProject
@@ -84,6 +84,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.DotNet.Build.Tasks.VisualStudio", "src\Microsoft.DotNet.Build.Tasks.VisualStudio\Microsoft.DotNet.Build.Tasks.VisualStudio.csproj", "{3CCA947D-B466-4481-BC78-43CE98A8A3A7}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.DotNet.Build.Tasks.VisualStudio.Tests", "src\Microsoft.DotNet.Build.Tasks.VisualStudio.Tests\Microsoft.DotNet.Build.Tasks.VisualStudio.Tests.csproj", "{86D901E6-C054-445B-92EC-E267EBB16278}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SendSomeJobsPlease", "SendSomeJobsPlease\SendSomeJobsPlease.csproj", "{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -507,6 +509,18 @@ Global
 		{86D901E6-C054-445B-92EC-E267EBB16278}.Release|x64.Build.0 = Release|Any CPU
 		{86D901E6-C054-445B-92EC-E267EBB16278}.Release|x86.ActiveCfg = Release|Any CPU
 		{86D901E6-C054-445B-92EC-E267EBB16278}.Release|x86.Build.0 = Release|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Debug|x64.Build.0 = Debug|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Debug|x86.Build.0 = Debug|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Release|x64.ActiveCfg = Release|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Release|x64.Build.0 = Release|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Release|x86.ActiveCfg = Release|Any CPU
+		{8CEA1D1F-8AA8-41BF-AE00-7A931EA332EC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
